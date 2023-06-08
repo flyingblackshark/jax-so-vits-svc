@@ -14,8 +14,7 @@ import jax
 from jax import random
 import numpy as np
 import optax
-import tensorflow as tf
-#import tensorflow_datasets as tfds
+
 
 from vits import attentions
 from vits import commons
