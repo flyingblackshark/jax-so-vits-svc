@@ -12,8 +12,7 @@ transformers
 tqdm
 librosa
 omegaconf
-pytorch
+torch
 jax
 flax
-tensorflow
 optax

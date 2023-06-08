@@ -240,7 +240,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loader = trainloader
         #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
-            print("Working!")
+            print("Working!1")
             ppg = shard(ppg)
             ppg_l = shard(ppg_l)
             pit = shard(pit)
@@ -250,7 +250,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             audio = shard(audio)
             audio_l = shard(audio_l)
             generator_state, generator_loss,fake_audio = generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
+            print("Working!2")
             discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state, fake_audio,audio=audio, key=key_discriminator)
+            print("Working!3")
 
 
             # discriminator
