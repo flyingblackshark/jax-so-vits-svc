@@ -174,7 +174,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-        loss, grads = grad_fn(discriminator_state.params)
+        loss, grads = grad_fn(discriminator_state.params,audio)
 
         # Average cross the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
