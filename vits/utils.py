@@ -15,8 +15,8 @@ def load_wav_to_torch(full_path):
 f0_bin = 256
 f0_max = 1100.0
 f0_min = 50.0
-f0_mel_min = 1127 * jnp.log(1 + f0_min / 700)
-f0_mel_max = 1127 * jnp.log(1 + f0_max / 700)
+f0_mel_min = 1127 * np.log(1 + f0_min / 700)
+f0_mel_max = 1127 * np.log(1 + f0_max / 700)
 
 
 def f0_to_coarse(f0):

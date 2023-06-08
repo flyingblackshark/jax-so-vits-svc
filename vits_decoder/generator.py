@@ -124,6 +124,7 @@ class Generator(nn.Module):
         #f0 = self.f0_upsamp(f0).transpose(1, 2)
         har_source = self.m_source(f0)
         har_source = har_source.transpose(0,2,1)
+        x = x.transpose(0,2,1)
         x = self.conv_pre(x)
 
         for i in range(self.num_upsamples):
@@ -146,6 +147,7 @@ class Generator(nn.Module):
         x = nn.leaky_relu(x)
         x = self.conv_post(x)
         x = jnp.tanh(x)
+        x = x.transpose(0,2,1)
         return x
 
     # def remove_weight_norm(self):

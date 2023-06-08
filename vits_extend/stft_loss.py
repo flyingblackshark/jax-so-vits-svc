@@ -26,14 +26,15 @@ def stft(x, fft_size, hop_size, win_length):
     """
     x_stft = jax.scipy.signal.stft(x, nfft=fft_size, noverlap=hop_size, nperseg=win_length)
     #x_stft = jax.scipy.signal.stft(x, fft_size, hop_size, win_length, window, return_complex=False)
+    x_stft=x_stft[2]
     real = jnp.real(x_stft)#x_stft[..., 0]
     imag = jnp.imag(x_stft)#x_stft[..., 1]
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.sqrt(jnp.clip(a=real ** 2 + imag ** 2, a_min=1e-7)).transpose(2, 1)
+    return jnp.sqrt(jnp.clip(a=real ** 2 + imag ** 2, a_min=1e-7)).transpose(0,2, 1)
 
 
-class SpectralConvergengeLoss(nn.Module):
+class SpectralConvergengeLoss():
     """Spectral convergence loss module."""
 
     # def __init__(self):
@@ -48,10 +49,10 @@ class SpectralConvergengeLoss(nn.Module):
         Returns:
             Tensor: Spectral convergence loss value.
         """
-        return jnp.linalg.norm(y_mag - x_mag, ord="fro") / jnp.linalg.norm(y_mag, ord="fro")
+        return jnp.sqrt(jnp.sum(y_mag - x_mag)) / jnp.sqrt(jnp.sum(y_mag))
 
 
-class LogSTFTMagnitudeLoss(nn.Module):
+class LogSTFTMagnitudeLoss():
     """Log STFT magnitude loss module."""
 
     # def __init__(self):
@@ -66,16 +67,19 @@ class LogSTFTMagnitudeLoss(nn.Module):
         Returns:
             Tensor: Log STFT magnitude loss value.
         """
-        return optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag))
+        return jnp.mean(optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag)))
 
 
-class STFTLoss(nn.Module):
+class STFTLoss():
     """STFT loss module."""
-    fft_size:int=1024,
-    shift_size:int=120,
-    win_length:int=600
-    def setup(self ):
+    # fft_size:int=1024,
+    # shift_size:int=120,
+    # win_length:int=600
+    def __init__(self, fft_size=1024, shift_size=120, win_length=600):
         """Initialize STFT loss module."""
+        self.fft_size = fft_size
+        self.shift_size = shift_size
+        self.win_length = win_length
         #self.window = getattr(torch, window)(win_length).to(device)
         self.spectral_convergenge_loss = SpectralConvergengeLoss()
         self.log_stft_magnitude_loss = LogSTFTMagnitudeLoss()
@@ -97,11 +101,10 @@ class STFTLoss(nn.Module):
         return sc_loss, mag_loss
 
 
-class MultiResolutionSTFTLoss(nn.Module):
+class MultiResolutionSTFTLoss():
     """Multi resolution STFT loss module."""
-    resolutions:tuple
-    def setup(self,
-                 ):
+    #resolutions:tuple
+    def __init__(self,resolutions):
         """Initialize Multi resolution STFT loss module.
         Args:
             resolutions (list): List of (FFT size, hop size, window length).
@@ -109,7 +112,7 @@ class MultiResolutionSTFTLoss(nn.Module):
         """
         #super(MultiResolutionSTFTLoss, self).__init__()
         self.stft_losses = []
-        for fs, ss, wl in self.resolutions:
+        for fs, ss, wl in resolutions:
             self.stft_losses += [STFTLoss(fs, ss, wl)]
 
     def __call__(self, x, y):

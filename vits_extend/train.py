@@ -32,12 +32,14 @@ from functools import partial
 from typing import Any, Tuple
 from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
+import torch
 PRNGKey = jnp.ndarray
 
 # class TrainState(train_state.TrainState):
 #     batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
+    torch.multiprocessing.set_start_method('spawn')
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
@@ -46,10 +48,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         hp=hp)
 
         tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
-        fake_ppg = jnp.ones((1,400,1280))
-        fake_pit = jnp.ones((1,400))
-        fake_spec = jnp.ones((1,513,400))
-        fake_spk = jnp.ones((1,256))
+        fake_ppg = jnp.ones((8,400,1280))
+        fake_pit = jnp.ones((8,400))
+        fake_spec = jnp.ones((8,513,400))
+        fake_spk = jnp.ones((8,256))
         fake_spec_l = jnp.asarray(np.asarray(400))
         fake_ppg_l = jnp.asarray(np.asarray(400))
 
@@ -63,7 +65,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        fake_audio = jnp.ones((1,1,12000))
+        fake_audio = jnp.ones((8,1,8000))
         tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         variables = model.init(rng, fake_audio)
 
@@ -75,14 +77,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def generator_step(generator_state: train_state.TrainState,
                        discriminator_state: train_state.TrainState,
                        #real_data: jnp.ndarray,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : int ,spec_l:int ,
-                       key: PRNGKey,hp):
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
+                       key: PRNGKey):
         fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': generator_state.params},
                 #'batch_stats': generator_state.batch_stats},
                 ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
-        def loss_fn(params):
+        def loss_fn(params,audio,fake_audio):
             audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -128,7 +130,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_g, mutables,fake_audio
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss, mutables), grads = grad_fn(generator_state.params)
+        (loss, mutables), grads = grad_fn(generator_state.params,audio,fake_audio)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -191,15 +193,15 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     init_epoch = 1
     step = 0
-
+   
     stft = TacotronSTFT(filter_length=hp.data.filter_length,
                         hop_length=hp.data.hop_length,
                         win_length=hp.data.win_length,
                         n_mel_channels=hp.data.mel_channels,
                         sampling_rate=hp.data.sampling_rate,
                         mel_fmin=hp.data.mel_fmin,
-                        mel_fmax=hp.data.mel_fmax,
-                        center=False)
+                        mel_fmax=hp.data.mel_fmax)
+                        #center=False)
                         #device=device)
     # define logger, writer, valloader, stft at rank_zero
     if rank == 0:
@@ -226,24 +228,24 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     for epoch in range(init_epoch, hp.train.epochs):
 
-        trainloader.batch_sampler.set_epoch(epoch)
+        #trainloader.batch_sampler.set_epoch(epoch)
 
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
             loader = trainloader
-
+        #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
-            # ppg = shard(ppg)
-            # ppg_l = shard(ppg_l)
-            # pit = shard(pit)
-            # spk = shard(spk)
-            # spec = shard(spec)
-            # spec_l = shard(spec_l)
-            # audio = shard(audio)
-            # audio_l = shard(audio_l)
-            generator_state, generator_loss,fake_audio = generator_step(generator_state, discriminator_state,ppg,  pit, spk, spec,  ppg_l,spec_l,key_generator)
-            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state, fake_audio,audio, key_discriminator)
+            ppg = shard(ppg)
+            ppg_l = shard(ppg_l)
+            pit = shard(pit)
+            spk = shard(spk)
+            spec = shard(spec)
+            spec_l = shard(spec_l)
+            audio = shard(audio)
+            audio_l = shard(audio_l)
+            generator_state, generator_loss,fake_audio = generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
+            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state, fake_audio,audio=audio, key=key_discriminator)
 
 
             # discriminator

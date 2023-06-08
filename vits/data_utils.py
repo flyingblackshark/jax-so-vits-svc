@@ -176,14 +176,14 @@ class TextAudioSpeakerCollate:
         # print(spe_lengths.shape)
         # print(wav_padded.shape)
         # print(wav_lengths.shape)
-        ppg_lengths = jnp.asarray(np.asarray(ppg_lengths))
-        pit_padded = jnp.asarray(np.asarray(pit_padded))
-        ppg_padded = jnp.asarray(np.asarray(ppg_padded))
-        spk = jnp.asarray(np.asarray(spk))
-        spe_padded = jnp.asarray(np.asarray(spe_padded))
-        spe_lengths = jnp.asarray(np.asarray(spe_lengths))
-        wav_padded = jnp.asarray(np.asarray(wav_padded))
-        wav_lengths = jnp.asarray(np.asarray(wav_lengths))
+        ppg_lengths = np.asarray(ppg_lengths)
+        pit_padded = np.asarray(pit_padded)
+        ppg_padded = np.asarray(ppg_padded)
+        spk = np.asarray(spk)
+        spe_padded = np.asarray(spe_padded)
+        spe_lengths = np.asarray(spe_lengths)
+        wav_padded = np.asarray(wav_padded)
+        wav_lengths = np.asarray(wav_lengths)
         return (
             ppg_padded,
             ppg_lengths,

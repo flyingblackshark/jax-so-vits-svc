@@ -156,7 +156,7 @@ class SynthesizerTrn(nn.Module):
     ):
         #super().__init__()
         #self.segment_size = segment_size
-        self.emb_g = nn.Dense(self.hp.vits.spk_dim, self.hp.vits.gin_channels)
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,

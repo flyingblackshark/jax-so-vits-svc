@@ -23,19 +23,23 @@
 import math
 import os
 import random
-import torch
-import torch.utils.data
+# import torch
+# import torch.utils.data
+import jax
+import jax.numpy as jnp
+import flax.linen as nn
 import numpy as np
 from librosa.util import normalize
 from scipy.io.wavfile import read
 from librosa.filters import mel as librosa_mel_fn
+from typing import Optional
 
+class TacotronSTFT():
 
-class TacotronSTFT(torch.nn.Module):
     def __init__(self, filter_length=512, hop_length=160, win_length=512,
                  n_mel_channels=80, sampling_rate=16000, mel_fmin=0.0,
-                 mel_fmax=None, center=False, device='cpu'):
-        super(TacotronSTFT, self).__init__()
+                 mel_fmax=None):
+        #uper(TacotronSTFT, self).__init__()
         self.n_mel_channels = n_mel_channels
         self.sampling_rate = sampling_rate
         self.n_fft = filter_length
@@ -43,30 +47,23 @@ class TacotronSTFT(torch.nn.Module):
         self.win_size = win_length
         self.fmin = mel_fmin
         self.fmax = mel_fmax
-        self.center = center
-
         mel = librosa_mel_fn(
             sr=sampling_rate, n_fft=filter_length, n_mels=n_mel_channels, fmin=mel_fmin, fmax=mel_fmax)
+        self.mel_basis = mel
+    # def linear_spectrogram(self, y):
+    #     #assert (torch.min(y.data) >= -1)
+    #     #assert (torch.max(y.data) <= 1)
 
-        mel_basis = torch.from_numpy(mel).float().to(device)
-        hann_window = torch.hann_window(win_length).to(device)
+    #     y = jnp.pad(jnp.expand_dims(y,1),
+    #                                 (int((self.filter_length - self.hop_length) / 2), int((self.filter_length - self.hop_length) / 2)),
+    #                                 mode='reflect')
+    #     y = y.squeeze(1)
 
-        self.register_buffer('mel_basis', mel_basis)
-        self.register_buffer('hann_window', hann_window)
+    #     spec = jax.scipy.signal.stft(y, nfft=self.filter_length, noverlap=self.hop_length, nperseg=self.win_length)
+    #     spec = jnp.sqrt(jnp.real(spec[2])**2+jnp.imag(spec[2])**2)
+    #     #spec = torch.norm(spec, p=2, dim=-1)
 
-    def linear_spectrogram(self, y):
-        assert (torch.min(y.data) >= -1)
-        assert (torch.max(y.data) <= 1)
-
-        y = torch.nn.functional.pad(y.unsqueeze(1),
-                                    (int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2)),
-                                    mode='reflect')
-        y = y.squeeze(1)
-        spec = torch.stft(y, self.n_fft, hop_length=self.hop_size, win_length=self.win_size, window=self.hann_window,
-                          center=self.center, pad_mode='reflect', normalized=False, onesided=True, return_complex=False)
-        spec = torch.norm(spec, p=2, dim=-1)
-
-        return spec
+    #     return spec
 
     def mel_spectrogram(self, y):
         """Computes mel-spectrograms from a batch of waves
@@ -78,20 +75,19 @@ class TacotronSTFT(torch.nn.Module):
         -------
         mel_output: torch.FloatTensor of shape (B, n_mel_channels, T)
         """
-        assert(torch.min(y.data) >= -1)
-        assert(torch.max(y.data) <= 1)
+       # assert(torch.min(y.data) >= -1)
+        #assert(torch.max(y.data) <= 1)
 
-        y = torch.nn.functional.pad(y.unsqueeze(1),
-                                    (int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2)),
+        y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
                                     mode='reflect')
-        y = y.squeeze(1)
+        #y = y.squeeze(1)
 
-        spec = torch.stft(y, self.n_fft, hop_length=self.hop_size, win_length=self.win_size, window=self.hann_window,
-                          center=self.center, pad_mode='reflect', normalized=False, onesided=True, return_complex=False)
+        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size)
+        spec = spec[2]
+        #spec = jnp.sqrt((spec**2).sum(-1) + (1e-9))
+        spec = jnp.sqrt((jnp.real(spec[2])**2+jnp.imag(spec[2])**2) + (1e-9))
 
-        spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
-
-        spec = torch.matmul(self.mel_basis, spec)
+        spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
 
         return spec
@@ -101,4 +97,4 @@ class TacotronSTFT(torch.nn.Module):
         return output
 
     def dynamic_range_compression_torch(self, x, C=1, clip_val=1e-5):
-        return torch.log(torch.clamp(x, min=clip_val) * C)
+        return jnp.log(jnp.clip(a=x, a_min=clip_val) * C)
