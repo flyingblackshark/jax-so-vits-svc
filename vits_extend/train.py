@@ -147,7 +147,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def discriminator_step(generator_state: train_state.TrainState,
                     discriminator_state: train_state.TrainState,
                     audio :jnp.ndarray,
-                    fake_audio : jnp.ndarray,
+                    #fake_audio : jnp.ndarray,
                     key: PRNGKey):
         def loss_fn(params):
             fake_audio, ids_slice, z_mask, \
@@ -252,9 +252,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state, generator_loss,fake_audio = generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
+            generator_state, generator_loss = generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
             print("Working!2")
-            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state, fake_audio,audio=audio, key=key_discriminator)
+            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,audio=audio, key=key_discriminator)
             print("Working!3")
 
 
