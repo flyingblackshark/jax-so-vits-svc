@@ -153,17 +153,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
             fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': generator_state.params},
-                #'batch_stats': generator_state.batch_stats},
-                ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
+                ppg, pit, spec, spk, ppg_l, spec_l)
             audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-            disc_fake, mutables = discriminator_state.apply_fn(
-                {'params': params}, 
-                #'batch_stats': discriminator_state.batch_stats},
-             fake_audio)#,mutable=['batch_stats'])
-            disc_real, mutables = discriminator_state.apply_fn(
+            disc_fake = discriminator_state.apply_fn(
+                {'params': params},    
+             fake_audio)
+            disc_real = discriminator_state.apply_fn(
                 {'params': params},
-               # 'batch_stats': mutables['batch_stats']},
-                audio)#, mutable=['batch_stats'])
+                audio)
        
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):

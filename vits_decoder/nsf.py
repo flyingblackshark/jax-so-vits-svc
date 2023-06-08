@@ -377,7 +377,7 @@ class SourceModuleHnNSF(nn.Module):
         Sine_source (batchsize, length, 1)
         """
         # source for harmonic branch
-        sine_wavs = self.l_sin_gen(x)
+        sine_wavs = jax.lax.stop_gradient(self.l_sin_gen(x))
         sine_wavs = jnp.matmul(sine_wavs,jnp.transpose(self.merge_w)) + self.merge_b
         sine_wavs = jnp.expand_dims(sine_wavs,-1)
         sine_merge = nn.tanh(sine_wavs)#self.l_tanh(sine_wavs)
