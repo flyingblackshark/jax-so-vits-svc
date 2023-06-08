@@ -143,7 +143,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_generator_state = generator_state.apply_gradients(
             grads=grads)#, batch_stats=mutables['batch_stats'])
     
-        return new_generator_state, loss,fake_audio
+        return new_generator_state, loss
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state: train_state.TrainState,
                     discriminator_state: train_state.TrainState,
