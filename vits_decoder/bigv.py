@@ -11,7 +11,7 @@ from vits import commons
 from functools import partial
 import flax
 import jax
-
+from typing import Tuple
 # def init_weights(m, mean=0.0, std=0.01):
 #     classname = m.__class__.__name__
 #     if classname.find("Conv") != -1:
@@ -25,7 +25,7 @@ import jax
 class AMPBlock(nn.Module):
     channels:int
     kernel_size:int=3
-    dilation:tuple[int]=(1, 3, 5)
+    dilation:Tuple[int]=(1, 3, 5)
     def setup(self):
         super(AMPBlock, self).__init__()
         self.convs1 = [
