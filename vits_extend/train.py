@@ -152,14 +152,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
         def loss_fn(params):
             fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},
+                {'params': generator_state.params},
                 ppg, pit, spec, spk, ppg_l, spec_l)
             disc_fake, mutables = discriminator_state.apply_fn(
-                {'params': discriminator_state.params}, 
+                {'params': params}, 
                 #'batch_stats': discriminator_state.batch_stats},
              fake_audio)#,mutable=['batch_stats'])
             disc_real, mutables = discriminator_state.apply_fn(
-                {'params': discriminator_state.params},
+                {'params': params},
                # 'batch_stats': mutables['batch_stats']},
                 audio)#, mutable=['batch_stats'])
        
