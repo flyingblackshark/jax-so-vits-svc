@@ -84,8 +84,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': params},
-                #'batch_stats': generator_state.batch_stats},
-                ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
+                ppg, pit, spec, spk, ppg_l, spec_l)
             audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -130,10 +129,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
             #loss = (real_loss + generated_loss) / 2
 
-            return loss_g,fake_audio
+            return loss_g
 
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,fake_audio), grads = grad_fn(generator_state.params,audio)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
+        loss, grads = grad_fn(generator_state.params,audio)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -143,7 +142,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_generator_state = generator_state.apply_gradients(
             grads=grads)#, batch_stats=mutables['batch_stats'])
     
-        return new_generator_state, loss,fake_audio
+        return new_generator_state, loss
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state: train_state.TrainState,
                     discriminator_state: train_state.TrainState,
@@ -151,6 +150,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     fake_audio : jnp.ndarray,
                     key: PRNGKey):
         def loss_fn(params):
+            fake_audio, ids_slice, z_mask, \
+            (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
+                {'params': params},
+                ppg, pit, spec, spk, ppg_l, spec_l)
             disc_fake, mutables = discriminator_state.apply_fn(
                 {'params': discriminator_state.params}, 
                 #'batch_stats': discriminator_state.batch_stats},
