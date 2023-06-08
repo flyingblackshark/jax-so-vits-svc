@@ -130,7 +130,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
             #loss = (real_loss + generated_loss) / 2
 
-            return loss_g
+            return loss_g,fake_audio
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
         (loss,fake_audio), grads = grad_fn(generator_state.params,audio)
