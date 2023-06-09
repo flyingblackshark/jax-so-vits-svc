@@ -58,7 +58,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l)
 
         state = train_state.TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])#, batch_stats=variables['batch_stats'])
+            params=variables['params'])
         
         return state
     @partial(jax.pmap, static_broadcasted_argnums=(1))
@@ -110,10 +110,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             disc_real = discriminator_state.apply_fn(
             {'params': discriminator_state.params},
             audio)
-            score_loss = 0.0
-            for (_, score_fake) in disc_fake:
-                score_loss += jnp.mean((score_fake - 1.0)**2)
-            score_loss = score_loss / len(disc_fake)
+
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
                 for fake, real in zip(feat_fake, feat_real):
@@ -128,7 +125,6 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
-            #loss = (real_loss + generated_loss) / 2
 
             return loss_g
 
@@ -138,13 +134,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
         loss = jax.lax.pmean(loss, axis_name='num_devices')
-        # loss_m = jax.lax.pmean(loss_m, axis_name='num_devices')
-        # loss_s = jax.lax.pmean(loss_s, axis_name='num_devices')
-        # loss_k = jax.lax.pmean(loss_k, axis_name='num_devices')
-        # loss_r = jax.lax.pmean(loss_r, axis_name='num_devices')
+
         # Update the Generator through gradient descent.
         new_generator_state = generator_state.apply_gradients(
-            grads=grads)#, batch_stats=mutables['batch_stats'])
+            grads=grads)
     
         return new_generator_state, loss#,loss_m,loss_s,loss_k,loss_r
     @partial(jax.pmap, axis_name='num_devices')
