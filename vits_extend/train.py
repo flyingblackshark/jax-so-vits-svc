@@ -151,7 +151,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     discriminator_state: TrainState,
                     ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,
                     key: PRNGKey):
-        audio=audio
+
         def loss_fn(params):
             (fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
