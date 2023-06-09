@@ -257,8 +257,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             step += 1
             # logging
-            #loss_g = generator_loss#loss_g.item()
-            #loss_d = discriminator_loss#loss_d.item()
+            loss_g = generator_loss#loss_g.item()
+            loss_d = discriminator_loss#loss_d.item()
             # loss_s = stft_loss.item()
             # loss_m = mel_loss.item()
             # loss_k = loss_kl_f.item()
@@ -266,8 +266,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
           
             if rank == 0 and step % hp.log.info_interval == 0:
                 metrics = jax.device_get([generator_loss[0], discriminator_loss[1]])
-                # print("g %.04f d %.04f  | step %d" % (
-                #      loss_g,  loss_d,  step))
+                print("g %.04f d %.04f  | step %d" % (
+                     loss_g,  loss_d,  step))
                 print(metrics)
                 #print(loss_d)
             #     writer.log_training(
