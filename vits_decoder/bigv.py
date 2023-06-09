@@ -20,7 +20,7 @@ from typing import Tuple
 
 # def get_padding(kernel_size, dilation=1):
 #     return int((kernel_size*dilation - dilation)/2)
-
+from jax.nn.initializers import normal as normal_init
 
 class AMPBlock(nn.Module):
     channels:int
@@ -36,6 +36,11 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],
                                padding="SAME")
         ]
+        self.norms1=[
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        ]
         #self.convs1.apply(init_weights)
 
         self.convs2 = [
@@ -46,14 +51,21 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
                                padding="SAME")
         ]
+        self.norms2=[
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        ]
         #self.convs2.apply(init_weights)
 
     def __call__(self, x):
-        for c1, c2 in zip(self.convs1, self.convs2):
+        for c1, c2,c3,c4 in zip(self.convs1, self.convs2,self.norms1,self.norms2):
             xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt)
+            xt = c3(xt)
             xt = nn.leaky_relu(xt, 0.1)
             xt = c2(xt)
+            xt = c4(xt)
             x = xt + x
         return x
 

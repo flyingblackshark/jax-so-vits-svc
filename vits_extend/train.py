@@ -35,8 +35,8 @@ from flax.training.common_utils import shard, shard_prng_key
 import torch
 PRNGKey = jnp.ndarray
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: Any
+class TrainState(train_state.TrainState):
+    batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
     #torch.multiprocessing.set_start_method('spawn')
@@ -57,8 +57,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l)
 
-        state = train_state.TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])
+        state = TrainState.create(apply_fn=model.apply, tx=tx, 
+            params=variables['params'],batch_stats=variables['batch_stats'])
         
         return state
     @partial(jax.pmap, static_broadcasted_argnums=(1))
@@ -69,23 +69,21 @@ def train(rank, args, chkpt_path, hp, hp_str):
         tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         variables = model.init(rng, fake_audio)
        
-        state = train_state.TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])#, batch_stats=variables['batch_stats'])
+        state = TrainState.create(apply_fn=model.apply, tx=tx, 
+            params=variables['params'], batch_stats=variables['batch_stats'])
         
         return state
     @partial(jax.pmap, axis_name='num_devices')
-    def generator_step(generator_state: train_state.TrainState,
-                       discriminator_state: train_state.TrainState,
+    def generator_step(generator_state: TrainState,
+                       discriminator_state: TrainState,
                        #real_data: jnp.ndarray,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
                        key: PRNGKey):
        
         def loss_fn(params,audio):
-            fake_audio, ids_slice, z_mask, \
-            (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},
-                #'batch_stats': generator_state.batch_stats},
-                ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
+            (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
+                {'params': params,'batch_stats': generator_state.batch_stats},     
+                ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
             audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -97,9 +95,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             # Generator Loss
             #disc_fake = model_d(fake_audio)
-            disc_fake = discriminator_state.apply_fn(
-            {'params': discriminator_state.params},
-            fake_audio)
+            disc_fake,mutables = discriminator_state.apply_fn(
+            {'params': discriminator_state.params ,'batch_stats': discriminator_state.batch_stats},
+            fake_audio, mutable=['batch_stats'])
             score_loss = 0.0
             for (_, score_fake) in disc_fake:
                 score_loss += jnp.mean((score_fake - 1.0)**2)
@@ -107,9 +105,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             # Feature Loss
             # disc_real = model_d(audio)
-            disc_real = discriminator_state.apply_fn(
-            {'params': discriminator_state.params},
-            audio)
+            disc_real,mutables = discriminator_state.apply_fn(
+            {'params': discriminator_state.params,'batch_stats': mutables['batch_stats']},
+            audio, mutable=['batch_stats'])
 
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
@@ -119,17 +117,17 @@ def train(rank, args, chkpt_path, hp, hp_str):
             feat_loss = feat_loss * 2
 
             # Kl Loss
-            # loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-            # loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            # loss_kl_f = jnp.mean(loss_kl_f)
-            # loss_kl_r = jnp.mean(loss_kl_r)
+            loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
+            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
+            loss_kl_f = jnp.mean(loss_kl_f)
+            loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
-            loss_g = score_loss + feat_loss + mel_loss + stft_loss #+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
+            loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
-            return loss_g
+            return loss_g, mutables
 
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-        loss, grads = grad_fn(generator_state.params,audio)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        (loss,mutables), grads = grad_fn(generator_state.params,audio)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -137,25 +135,25 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         # Update the Generator through gradient descent.
         new_generator_state = generator_state.apply_gradients(
-            grads=grads)
+            grads=grads, batch_stats=mutables['batch_stats'])
     
         return new_generator_state, loss#,loss_m,loss_s,loss_k,loss_r
     @partial(jax.pmap, axis_name='num_devices')
-    def discriminator_step(generator_state: train_state.TrainState,
-                    discriminator_state: train_state.TrainState,
+    def discriminator_step(generator_state:TrainState,
+                    discriminator_state: TrainState,
                     ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
                     key: PRNGKey):
         def loss_fn(params,audio):
-            fake_audio, ids_slice, z_mask, \
-            (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': generator_state.params},
-                ppg, pit, spec, spk, ppg_l, spec_l)
+            (fake_audio, ids_slice, z_mask, \
+            (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
+                {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
+                ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
             audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-            disc_fake = discriminator_state.apply_fn(
-                {'params': params},    
+            disc_fake,mutables  = discriminator_state.apply_fn(
+                {'params': params,'batch_stats': discriminator_state.batch_stats},    
              fake_audio)
-            disc_real = discriminator_state.apply_fn(
-                {'params': params},
+            disc_real,mutables  = discriminator_state.apply_fn(
+                {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio)
        
             loss_d = 0.0
@@ -163,11 +161,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 loss_d += jnp.mean((score_real - 1.0)**2)
                 loss_d += jnp.mean((score_fake)**2)
             loss_d = loss_d / len(disc_fake)
-            return loss_d
+            return loss_d,mutables 
         
         # Generate data with the Generator, critique it with the Discriminator.
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-        loss, grads = grad_fn(discriminator_state.params,audio)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        (loss,mutables), grads = grad_fn(discriminator_state.params,audio)
 
         # Average cross the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -175,7 +173,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(
-        grads=grads)#, batch_stats=mutables['batch_stats'])
+        grads=grads, batch_stats=mutables['batch_stats'])
         
         return new_discriminator_state, loss
     
