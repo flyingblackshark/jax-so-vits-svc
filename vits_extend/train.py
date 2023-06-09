@@ -119,10 +119,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             feat_loss = feat_loss * 2
 
             # Kl Loss
-            loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            loss_kl_f = jnp.mean(loss_kl_f)
-            loss_kl_r = jnp.mean(loss_kl_r)
+            # loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
+            # loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
+            # loss_kl_f = jnp.mean(loss_kl_f)
+            # loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
             loss_g = score_loss + feat_loss + mel_loss + stft_loss #+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
