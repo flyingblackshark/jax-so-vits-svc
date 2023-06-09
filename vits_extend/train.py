@@ -98,9 +98,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             disc_fake,mutables = discriminator_state.apply_fn(
             {'params': discriminator_state.params ,'batch_stats': discriminator_state.batch_stats},
             fake_audio, mutable=['batch_stats'])
-            score_loss = 0.0
+            score_loss:jnp.float32 = 0.0
             for (_, score_fake) in disc_fake:
-                score_loss += jnp.mean((score_fake - 1.0)**2)
+                score_loss += jnp.mean((score_fake - 1.0)**2,dtype=jnp.float32)
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
@@ -112,15 +112,15 @@ def train(rank, args, chkpt_path, hp, hp_str):
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
                 for fake, real in zip(feat_fake, feat_real):
-                    feat_loss += jnp.mean(jnp.abs(fake - real))
+                    feat_loss += jnp.mean(jnp.abs(fake - real),dtype=jnp.float32)
             feat_loss = feat_loss / len(disc_fake)
             feat_loss = feat_loss * 2
 
             # Kl Loss
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            loss_kl_f = jnp.mean(loss_kl_f)
-            loss_kl_r = jnp.mean(loss_kl_r)
+            loss_kl_f = jnp.mean(loss_kl_f,dtype=jnp.float32)
+            loss_kl_r = jnp.mean(loss_kl_r,dtype=jnp.float32)
             # Loss
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
@@ -156,10 +156,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio, mutable=['batch_stats'])
        
-            loss_d = 0.0
+            loss_d:np.float32 = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-                loss_d += jnp.mean((score_real - 1.0)**2)
-                loss_d += jnp.mean((score_fake)**2)
+                loss_d += jnp.mean((score_real - 1.0)**2,dtype=jnp.float32)
+                loss_d += jnp.mean((score_fake)**2,dtype=jnp.float32)
             loss_d = loss_d / len(disc_fake)
             return loss_d,mutables 
         
