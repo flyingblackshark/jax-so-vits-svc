@@ -79,6 +79,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
                        #real_data: jnp.ndarray,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
                        key: PRNGKey):
+        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                    hop_length=hp.data.hop_length,
+                    win_length=hp.data.win_length,
+                    n_mel_channels=hp.data.mel_channels,
+                    sampling_rate=hp.data.sampling_rate,
+                    mel_fmin=hp.data.mel_fmin,
+                    mel_fmax=hp.data.mel_fmax)
         stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
         def loss_fn(params,audio):
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
@@ -95,7 +102,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             # Generator Loss
             #disc_fake = model_d(fake_audio)
-            disc_fake,mutables = discriminator_state.apply_fn(
+            disc_fake,_ = discriminator_state.apply_fn(
             {'params': discriminator_state.params ,'batch_stats': discriminator_state.batch_stats},
             fake_audio, mutable=['batch_stats'])
             score_loss:jnp.float32 = 0.0
@@ -105,8 +112,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             # Feature Loss
             # disc_real = model_d(audio)
-            disc_real,mutables = discriminator_state.apply_fn(
-            {'params': discriminator_state.params,'batch_stats': mutables['batch_stats']},
+            disc_real,_ = discriminator_state.apply_fn(
+            {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
             audio, mutable=['batch_stats'])
 
             feat_loss:jnp.float32 = 0.0
@@ -194,13 +201,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     init_epoch = 1
     step = 0
    
-    stft = TacotronSTFT(filter_length=hp.data.filter_length,
-                        hop_length=hp.data.hop_length,
-                        win_length=hp.data.win_length,
-                        n_mel_channels=hp.data.mel_channels,
-                        sampling_rate=hp.data.sampling_rate,
-                        mel_fmin=hp.data.mel_fmin,
-                        mel_fmax=hp.data.mel_fmax)
+
                         #center=False)
                         #device=device)
     # define logger, writer, valloader, stft at rank_zero
