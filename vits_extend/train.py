@@ -266,8 +266,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             step += 1
             # logging
-            loss_g = generator_loss#loss_g.item()
-            loss_d = discriminator_loss#loss_d.item()
+            loss_g = np.mean(generator_loss)#loss_g.item()
+            loss_d = np.mean(discriminator_loss)#loss_d.item()
             # loss_s = stft_loss.item()
             # loss_m = mel_loss.item()
             # loss_k = loss_kl_f.item()
