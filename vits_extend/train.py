@@ -167,7 +167,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 loss_d += jnp.mean((score_real - 1.0)**2)
                 loss_d += jnp.mean((score_fake)**2)
             loss_d = loss_d / len(disc_fake)
-            return loss
+            return loss_d
         
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
