@@ -131,7 +131,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_kl_f = jnp.mean(loss_kl_f,dtype=jnp.float32)
             loss_kl_r = jnp.mean(loss_kl_r,dtype=jnp.float32)
             # Loss
-            loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
+            loss_g = score_loss + feat_loss + mel_loss #+ stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
             return loss_g, mutables
 
