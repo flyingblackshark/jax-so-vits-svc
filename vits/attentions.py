@@ -32,6 +32,7 @@ class Encoder(nn.Module):
                     # hidden_channels,
                     num_heads=self.n_heads,
                     dropout_rate=self.p_dropout,
+                    deterministic=True
                     # proximal_bias=proximal_bias,
                     # proximal_init=proximal_init,
                 )
