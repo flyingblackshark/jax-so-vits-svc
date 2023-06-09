@@ -39,6 +39,7 @@ class TrainState(train_state.TrainState):
     batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
+    num_devices = jax.device_count()
     #torch.multiprocessing.set_start_method('spawn')
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
