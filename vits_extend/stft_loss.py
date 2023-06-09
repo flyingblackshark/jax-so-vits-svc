@@ -49,7 +49,7 @@ class SpectralConvergengeLoss():
         Returns:
             Tensor: Spectral convergence loss value.
         """
-        return jnp.sqrt(jnp.sum(y_mag - x_mag)) / jnp.sqrt(jnp.sum(y_mag))
+        return jnp.sqrt(jnp.sum((y_mag - x_mag)**2)) / jnp.sqrt(jnp.sum((y_mag)**2))
 
 
 class LogSTFTMagnitudeLoss():
