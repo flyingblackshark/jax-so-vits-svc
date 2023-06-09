@@ -387,7 +387,7 @@ class FFN(nn.Module):
         
     #@nn.compact
     def __call__(self, x, x_mask):
-        x=x.transpose(0,2,1)
+        #x=x.transpose(0,2,1)
         x = self.conv_1(x * x_mask)
         if self.activation == "gelu":
             x = x * nn.sigmoid(1.702 * x)
