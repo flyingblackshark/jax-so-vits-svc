@@ -252,7 +252,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             fake_audio =shard(fake_audio)
             ids_slice =shard(ids_slice)
             #print("Working!2")
-            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ids_slice=ids_slice,fake_audio=fake_audio,audio_e=audio,key=key_discriminator)
+            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ids_slice_e=ids_slice,fake_audio_e=fake_audio,audio_e=audio,key=key_discriminator)
             #print("Working!3")
 
 
