@@ -147,14 +147,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             grads=grads, batch_stats=mutables['batch_stats'])
     
         return new_generator_state, loss#,loss_m,loss_s,loss_k,loss_r
-    @jax.vmap
-    def calc_loss_d(disc_fake, disc_real):
-        loss_d = 0.0
-        for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-            loss_d += jnp.mean((score_real - 1.0)**2,dtype=jnp.float32)
-            loss_d += jnp.mean((score_fake)**2,dtype=jnp.float32)
-        loss_d = loss_d / len(disc_fake)
-        return loss_d
+       
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state:TrainState,
                     discriminator_state: TrainState,
@@ -173,7 +166,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
             disc_real,mutables  = discriminator_state.apply_fn(
                 {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio, mutable=['batch_stats'])
-            loss_d = calc_loss_d(disc_fake,disc_real).mean()
+            loss_d = 0.0
+            for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
+                loss_d += jnp.mean((score_real - 1.0)**2,dtype=jnp.float32)
+                loss_d += jnp.mean((score_fake)**2,dtype=jnp.float32)
+            loss_d = loss_d / len(disc_fake)
           
             return loss_d,mutables 
         

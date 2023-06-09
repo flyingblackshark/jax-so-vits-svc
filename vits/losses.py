@@ -61,7 +61,7 @@ def generator_loss(disc_outputs):
 #     kl -= torch.sum(total_logdet)
 #     l = kl / torch.sum(z_mask)
 #     return l
-@jax.vmap
+
 def kl_loss(z_p, logs_q, m_p, logs_p, total_logdet, z_mask):
     """
     z_p, logs_q: [b, h, t_t]
