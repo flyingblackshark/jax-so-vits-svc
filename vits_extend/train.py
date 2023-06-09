@@ -130,20 +130,23 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
             #loss = (real_loss + generated_loss) / 2
 
-            return loss_g
+            return loss_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r
 
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-        loss, grads = grad_fn(generator_state.params,audio)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        (loss,loss_m,loss_s,loss_k,loss_r), grads = grad_fn(generator_state.params,audio)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
         loss = jax.lax.pmean(loss, axis_name='num_devices')
-
+        loss_m = jax.lax.pmean(loss_m, axis_name='num_devices')
+        loss_s = jax.lax.pmean(loss_s, axis_name='num_devices')
+        loss_k = jax.lax.pmean(loss_k, axis_name='num_devices')
+        loss_r = jax.lax.pmean(loss_r, axis_name='num_devices')
         # Update the Generator through gradient descent.
         new_generator_state = generator_state.apply_gradients(
             grads=grads)#, batch_stats=mutables['batch_stats'])
     
-        return new_generator_state, loss
+        return new_generator_state, loss,loss_m,loss_s,loss_k,loss_r
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state: train_state.TrainState,
                     discriminator_state: train_state.TrainState,
@@ -242,7 +245,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loader = trainloader
         #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
-            print("Working!1")
+            #print("Working!1")
             ppg = shard(ppg)
             ppg_l = shard(ppg_l)
             pit = shard(pit)
@@ -251,10 +254,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state, generator_loss= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
-            print("Working!2")
+            generator_state, generator_loss,loss_m,loss_s,loss_k,loss_r= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
+            #print("Working!2")
             discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_discriminator)
-            print("Working!3")
+            #print("Working!3")
 
 
             # discriminator
@@ -272,7 +275,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             if rank == 0 and step % hp.log.info_interval == 0:
                 writer.log_training(
-                    loss_g, loss_d, step)
-                logger.info("g %.04f d %.04f  | step %d" % (
-                    loss_g,loss_d,step))
+                    loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, step)
+                logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
+                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, step))
 
