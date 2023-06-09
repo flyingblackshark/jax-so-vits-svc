@@ -5,6 +5,7 @@
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
+from jax.nn.initializers import normal as normal_init
 class DiscriminatorR(nn.Module):
     hp:tuple
     resolution:tuple
@@ -18,14 +19,22 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same"),
             nn.Conv(features=32, kernel_size=[3, 3], padding="same"),
         ]
+        self.norms = [
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        ]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same")
     def __call__(self, x):
         fmap = []
 
         x = self.spectrogram(x)
         x = jnp.expand_dims(x,0)
-        for l in self.convs:
+        for l,n in zip(self.convs,self.norms):
             x = l(x)
+            x = n(x)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
         x = self.conv_post(x)
