@@ -164,11 +164,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 audio, mutable=['batch_stats'])
        
             loss_d:jnp.float32 = 0.0
-            real_list = []
-            fake_list = []
-            for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-                real_list.append(score_real)
-                fake_list.append(score_fake)
+            real_list = jnp.asarray([score_fake for (_,score_fake) in disc_fake])
+            fake_list = jnp.asarray([score_real for (_,score_real) in disc_real])
+            # for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
             #     loss_d += jnp.mean((score_real - 1.0)**2,dtype=jnp.float32)
             #     loss_d += jnp.mean((score_fake)**2,dtype=jnp.float32)
             # loss_d = loss_d / len(disc_fake)
