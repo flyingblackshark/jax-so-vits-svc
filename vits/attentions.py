@@ -19,59 +19,51 @@ class Encoder(nn.Module):
     p_dropout:float = 0.0
     window_size:int = 4
 
-    # def setup(self):
-    #     self.drop = nn.Dropout(self.p_dropout)
-    #     self.attn_layers = []
-    #     self.norm_layers_1 = []
-    #     self.ffn_layers = []
-    #     self.norm_layers_2 = []
-    #     for i in range(self.n_layers):
-    #         self.attn_layers.append(
-    #            nn.attention.MultiHeadDotProductAttention(
-    #                 # hidden_channels,
-    #                 # hidden_channels,
-    #                 num_heads=self.n_heads,
-    #                 dropout_rate=self.p_dropout,
-    #                 # proximal_bias=proximal_bias,
-    #                 # proximal_init=proximal_init,
-    #             )
-    #         )
-    #         self.norm_layers_1.append(nn.LayerNorm())
-    #         self.ffn_layers.append(
-    #             FFN(
-    #                 self.hidden_channels,
-    #                 self.filter_channels,
-    #                 self.kernel_size,
-    #                 p_dropout=self.p_dropout,
-    #             )
-    #         )
-    #         self.norm_layers_2.append(nn.LayerNorm())
-    @nn.compact
-    def __call__(self, x, x_mask):
-        attn_layer =  partial(nn.attention.MultiHeadDotProductAttention,
+    def setup(self):
+        self.drop = nn.Dropout(self.p_dropout)
+        attn_layers = []
+        norm_layers_1 = []
+        ffn_layers = []
+        norm_layers_2 = []
+        for i in range(self.n_layers):
+            attn_layers.append(
+               nn.attention.MultiHeadDotProductAttention(
+                    # hidden_channels,
+                    # hidden_channels,
                     num_heads=self.n_heads,
                     dropout_rate=self.p_dropout,
-                    deterministic=True)
-        drop_layer = partial(nn.Dropout,rate=self.p_dropout,deterministic=True)
-        norm_layer = nn.LayerNorm()
-        ffn_layer =  partial(FFN,
-                    out_channels=self.hidden_channels,
-                    filter_channels=self.filter_channels,
-                    kernel_size=self.kernel_size,
-                    p_dropout=self.p_dropout
+                    # proximal_bias=proximal_bias,
+                    # proximal_init=proximal_init,
                 )
+            )
+            norm_layers_1.append(nn.LayerNorm())
+            ffn_layers.append(
+                FFN(
+                    self.hidden_channels,
+                    self.filter_channels,
+                    self.kernel_size,
+                    p_dropout=self.p_dropout,
+                )
+            )
+            norm_layers_2.append(nn.LayerNorm())
+        self.attn_layers = attn_layers
+        self.norm_layers_1 = norm_layers_1
+        self.ffn_layers = ffn_layers
+        self.norm_layers_2 = norm_layers_2
+    #@nn.compact
+    def __call__(self, x, x_mask):
         attn_mask = jnp.expand_dims(x_mask,2) * jnp.expand_dims(x_mask,-1)
         x = x * x_mask
         x = x.transpose(0,2,1)
         #attn_mask = attn_mask.transpose(0,2,1)
         for i in range(self.n_layers):
-            y = attn_layer()(x, x, attn_mask)
-            y = drop_layer()(y)
-            x = norm_layer(x + y)
+            y = self.attn_layers[i](x, x, attn_mask)
+            y = self.drop(y)
+            x = self.norm_layers_1[i](x + y)
 
-            y = ffn_layer()(x, x_mask)
-            y = drop_layer()(y)
-            x = norm_layer(x + y)
+            y = self.ffn_layers[i](x, x_mask)
+            y = self.drop(y)
+            x = self.norm_layers_2[i](x + y)
         x = x.transpose(0,2,1)
         x = x * x_mask
         return x
@@ -387,19 +379,19 @@ class FFN(nn.Module):
             self.padding = "causal"
         else:
             self.padding = "same"
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding)
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
+        self.drop = nn.Dropout(self.p_dropout)
 
         
-    @nn.compact
+    #@nn.compact
     def __call__(self, x, x_mask):
-        conv_1 = partial(nn.Conv,features=self.filter_channels, kernel_size=[self.kernel_size],padding=self.padding)
-        conv_2 = partial(nn.Conv,features=self.out_channels, kernel_size=[self.kernel_size],padding=self.padding)
-        drop_layer = partial(nn.Dropout,rate=self.p_dropout,deterministic=True)
-        x = x.transpose(0,2,1)
-        x = conv_1()((x * x_mask).transpose(0,2,1))
+        x=x.transpose(0,2,1)
+        x = self.conv_1(x * x_mask)
         if self.activation == "gelu":
             x = x * nn.sigmoid(1.702 * x)
         else:
             x = nn.relu(x)
-        x = drop_layer()(x)
-        x = conv_2()((x.transpose(0,2,1) * x_mask).transpose(0,2,1))
+        x = self.drop(x)
+        x = self.conv_2(x * x_mask)
         return (x.transpose(0,2,1) * x_mask).transpose(0,2,1)
