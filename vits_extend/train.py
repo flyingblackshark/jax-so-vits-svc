@@ -109,7 +109,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             {'params': discriminator_state.params,'batch_stats': mutables['batch_stats']},
             audio, mutable=['batch_stats'])
 
-            feat_loss = 0.0
+            feat_loss:jnp.float32 = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
                 for fake, real in zip(feat_fake, feat_real):
                     feat_loss += jnp.mean(jnp.abs(fake - real),dtype=jnp.float32)
@@ -156,7 +156,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio, mutable=['batch_stats'])
        
-            loss_d:np.float32 = 0.0
+            loss_d:jnp.float32 = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean((score_real - 1.0)**2,dtype=jnp.float32)
                 loss_d += jnp.mean((score_fake)**2,dtype=jnp.float32)
