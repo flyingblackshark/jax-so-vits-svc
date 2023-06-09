@@ -156,16 +156,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio, mutable=['batch_stats'])
        
-            #loss_d = 0.0
-            _, score_fake = disc_fake
-            _,score_real = disc_real
-            # for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-            #     loss_d += jnp.mean((score_real - 1.0)**2)
-            #     loss_d += jnp.mean((score_fake)**2)
-            # loss_d = loss_d / len(disc_fake)
-            loss_d_1 = optax.l2_loss(score_real)
-            loss_d_2 = optax.l2_loss(score_fake)
-            loss_d = loss_d_1+loss_d_2
+            loss_d = 0.0
+            for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
+                loss_d += jnp.mean((score_real - 1.0)**2)
+                loss_d += jnp.mean((score_fake)**2)
+            loss_d = loss_d / len(disc_fake)
             return loss_d,mutables 
         
         # Generate data with the Generator, critique it with the Discriminator.
