@@ -77,7 +77,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def generator_step(generator_state: TrainState,
                        discriminator_state: TrainState,
                        #real_data: jnp.ndarray,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,
                        key: PRNGKey):
         stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -87,11 +87,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
         stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-        def loss_fn(params,audio):
+
+        def loss_fn(params):
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params,'batch_stats': generator_state.batch_stats},     
                 ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
-            audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
@@ -134,7 +135,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_g, mutables
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,mutables), grads = grad_fn(generator_state.params,audio)
+        (loss,mutables), grads = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -148,14 +149,15 @@ def train(rank, args, chkpt_path, hp, hp_str):
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state:TrainState,
                     discriminator_state: TrainState,
-                    ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
+                    ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,
                     key: PRNGKey):
-        def loss_fn(params,audio):
+        audio=audio
+        def loss_fn(params):
             (fake_audio, ids_slice, z_mask, \
             (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
                 ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
-            audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             disc_fake,mutables  = discriminator_state.apply_fn(
                 {'params': params,'batch_stats': discriminator_state.batch_stats},    
              fake_audio, mutable=['batch_stats'])
@@ -172,7 +174,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,mutables), grads = grad_fn(discriminator_state.params,audio)
+        (loss,mutables), grads = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -246,9 +248,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state, generator_loss= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_generator)
+            generator_state, generator_loss= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
             #print("Working!2")
-            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio=audio,key=key_discriminator)
+            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_discriminator)
             #print("Working!3")
 
 
