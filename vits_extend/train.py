@@ -173,7 +173,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             disc_real,mutables  = discriminator_state.apply_fn(
                 {'params': params,'batch_stats':  mutables['batch_stats']},
                 audio, mutable=['batch_stats'])
-            loss_d = calc_loss_d(disc_fake,disc_real)
+            loss_d = calc_loss_d(disc_fake,disc_real).mean()
           
             return loss_d,mutables 
         
