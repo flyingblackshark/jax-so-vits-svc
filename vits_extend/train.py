@@ -79,7 +79,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                        #real_data: jnp.ndarray,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio:jnp.ndarray,
                        key: PRNGKey):
-       
+        stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
         def loss_fn(params,audio):
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params,'batch_stats': generator_state.batch_stats},     
@@ -88,7 +88,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
-            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+          
             # Multi-Resolution STFT Loss
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
