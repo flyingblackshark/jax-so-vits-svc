@@ -20,7 +20,7 @@ class Encoder(nn.Module):
     window_size:int = 4
 
     def setup(self):
-        self.drop = nn.Dropout(self.p_dropout)
+        self.drop = nn.Dropout(self.p_dropout,deterministic=True)
         attn_layers = []
         norm_layers_1 = []
         ffn_layers = []
