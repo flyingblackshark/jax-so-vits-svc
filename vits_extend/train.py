@@ -176,6 +176,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        #optax.clip_by_global_norm(None)
         (loss,mutables), grads = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
