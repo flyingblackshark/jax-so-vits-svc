@@ -266,10 +266,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
           
             if rank == 0 and step % hp.log.info_interval == 0:
                 metrics = jax.device_get([generator_loss[0], discriminator_loss[1]])
-                print("g %.04f d %.04f  | step %d" % (
-                     loss_g,  loss_d,  step))
+                # print("g %.04f d %.04f  | step %d" % (
+                #      loss_g,  loss_d,  step))
                 print(metrics)
-                #print(loss_d)
+                print(loss_d)
+                print(loss_g)
             #     writer.log_training(
             #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, step)
             #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
