@@ -266,16 +266,18 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             step += 1
             # logging
-            loss_g = np.mean(generator_loss)#loss_g.item()
-            loss_d = np.mean(discriminator_loss)#loss_d.item()
+            loss_g = generator_loss#loss_g.item()
+            loss_d = discriminator_loss#loss_d.item()
             # loss_s = stft_loss.item()
             # loss_m = mel_loss.item()
             # loss_k = loss_kl_f.item()
             # loss_r = loss_kl_r.item()
           
             if rank == 0 and step % hp.log.info_interval == 0:
-                print("g %.04f d %.04f  | step %d" % (
-                     loss_g,  loss_d,  step))
+                # print("g %.04f d %.04f  | step %d" % (
+                #      loss_g,  loss_d,  step))
+                print(loss_g)
+                print(loss_d)
             #     writer.log_training(
             #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, step)
             #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
