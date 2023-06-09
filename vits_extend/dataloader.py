@@ -22,11 +22,11 @@ def create_dataloader_train(hps, n_gpus, rank):
     train_loader = DataLoader(
         train_dataset,
         batch_size=hps.train.batch_size,
-        num_workers=2,
+        num_workers=0,
         shuffle=False,
-        pin_memory=True,
+        pin_memory=False,
         collate_fn=collate_fn,
-        persistent_workers=True,
+        persistent_workers=False,
         drop_last=True)#,
         #batch_sampler=train_sampler)
     return train_loader
@@ -37,10 +37,10 @@ def create_dataloader_eval(hps):
     eval_dataset = TextAudioSpeakerSet(hps.data.validation_files, hps.data)
     eval_loader = DataLoader(
         eval_dataset,
-        num_workers=2,
+        num_workers=0,
         shuffle=False,
         batch_size=hps.train.batch_size,
-        pin_memory=True,
+        pin_memory=False,
         drop_last=True,
         collate_fn=collate_fn)
     return eval_loader

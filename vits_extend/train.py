@@ -39,7 +39,7 @@ PRNGKey = jnp.ndarray
 #     batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
-    torch.multiprocessing.set_start_method('spawn')
+    #torch.multiprocessing.set_start_method('spawn')
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
