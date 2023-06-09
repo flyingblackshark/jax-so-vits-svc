@@ -376,12 +376,12 @@ class FFN(nn.Module):
         # self.causal = causal
 
         if self.causal:
-            self.padding = "causal"
+            self.padding = "CAUSAL"
         else:
-            self.padding = "same"
+            self.padding = "SAME"
         self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding)
         self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
-        self.drop = nn.Dropout(self.p_dropout)
+        self.drop = nn.Dropout(self.p_dropout,deterministic=True)
 
         
     #@nn.compact
