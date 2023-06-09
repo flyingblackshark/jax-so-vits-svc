@@ -45,13 +45,14 @@ class DiscriminatorP(nn.Module):
             x = jnp.pad(x, [(0,0),(0, 0),(0,n_pad)], "reflect")
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
-
+        x=x.transpose(0,1,3,2)
         for l,n in zip(self.convs,self.norms):
             x = l(x)
             x = n(x)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
-            fmap.append(x)
+            fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)
+        x=x.transpose(0,1,3,2)
         fmap.append(x)
         #x = torch.flatten(x, 1, -1)
         x = jnp.reshape(x, [x.shape[0],-1])
