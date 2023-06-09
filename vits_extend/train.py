@@ -88,7 +88,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
-
+            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             # Multi-Resolution STFT Loss
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
@@ -221,7 +221,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         logger = logging.getLogger()
         writer = MyWriter(hp, log_dir)
 
-    stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+    
 
 
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
