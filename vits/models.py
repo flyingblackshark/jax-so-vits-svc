@@ -142,7 +142,27 @@ class PosteriorEncoder(nn.Module):
     # def remove_weight_norm(self):
     #     self.enc.remove_weight_norm()
 
+def l2_normalize(arr, axis, epsilon=1e-12):
+    """
+    L2 normalize along a particular axis.
 
+    Doc taken from tf.nn.l2_normalize:
+
+    https://www.tensorflow.org/api_docs/python/tf/math/l2_normalize
+
+        output = x / (
+            sqrt(
+                max(
+                    sum(x**2),
+                    epsilon
+                )
+            )
+        )
+    """
+    sq_arr = jnp.power(arr, 2)
+    square_sum = jnp.sum(sq_arr, axis=axis, keepdims=True)
+    max_weights = jnp.maximum(square_sum, epsilon)
+    return jnp.divide(arr, jnp.sqrt(max_weights))
 class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
@@ -193,7 +213,7 @@ class SynthesizerTrn(nn.Module):
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
         
-        g = jnp.expand_dims(self.emb_g(spk),-1)
+        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit))
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
