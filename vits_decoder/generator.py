@@ -58,7 +58,7 @@ class Generator(nn.Module):
         # speaker adaper, 256 should change by what speaker encoder you use
         self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
         # pre conv
-        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=1, padding="SAME",kernel_init=normal_init(0.01))
+        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1], padding="SAME",kernel_init=normal_init(0.01))
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -75,7 +75,7 @@ class Generator(nn.Module):
                        # hp.gen.upsample_initial_channel // (2 ** i),
                        features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                        kernel_size= k,
-                        strides=u,
+                        strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
             
