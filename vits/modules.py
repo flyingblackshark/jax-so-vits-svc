@@ -172,7 +172,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1])
+            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.02))
             #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             res_skip_layers.append(res_skip_layer)
         self.res_skip_layers = res_skip_layers
@@ -273,7 +273,7 @@ class ResidualCouplingLayer(nn.Module):
         self.half_channels = self.channels // 2
         # self.mean_only = mean_only
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1])
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.02))
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -283,11 +283,11 @@ class ResidualCouplingLayer(nn.Module):
             p_dropout=self.p_dropout,
         )
         self.post = nn.Conv(
-            features= self.half_channels * (2 - self.mean_only), kernel_size=[1])
+            features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=normal_init(0.02))
         # self.post.weight.data.zero_()
         # self.post.bias.data.zero_()
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1])
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.02))
 
     def __call__(self, x, x_mask, g=None, reverse=False):
         speaker = jnp.expand_dims(self.snac(g),-1)
