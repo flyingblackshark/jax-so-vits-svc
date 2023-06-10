@@ -47,8 +47,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
-
-        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        tx = optax.chain(
+        optax.clip_by_global_norm(1),
+        optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
+        optax.scale(-hp.train.learning_rate))
+        #tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         fake_ppg = jnp.zeros((8,400,1280))
         fake_pit = jnp.zeros((8,400))
         fake_spec = jnp.zeros((8,513,400))
@@ -67,7 +70,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
         fake_audio = jnp.zeros((8,1,8000))
-        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        tx = optax.chain(
+        optax.clip_by_global_norm(1),
+        optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
+        optax.scale(-hp.train.learning_rate))
+        #tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         variables = model.init(rng, fake_audio)
        
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
@@ -143,6 +150,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loss = jax.lax.pmean(loss, axis_name='num_devices')
         #jax.debug.print("{}",grads)
         # Update the Generator through gradient descent.
+        gradient_transform = optax.chain(
+            optax.clip_by_global_norm(1.0),  # Clip by the gradient by the global norm.
+            optax.scale_by_adam(),  # Use the updates from adam.
+            #optax.scale_by_schedule(scheduler),  # Use the learning rate from the scheduler.
+            # Scale updates by -1 since optax.apply_updates is additive and we want to descend on the loss.
+            optax.scale(-1.0)
+        )
+        updates, opt_state = gradient_transform.update(grads, opt_state)
         new_generator_state = generator_state.apply_gradients(
             grads=grads, batch_stats=mutables['batch_stats'])
     
