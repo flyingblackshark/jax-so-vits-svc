@@ -31,7 +31,7 @@ def stft(x, fft_size, hop_size, win_length):
     imag = jnp.imag(x_stft)#x_stft[..., 1]
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.sqrt(jnp.clip(a=real ** 2 + imag ** 2, a_min=1e-7)).transpose(0,2, 1)
+    return jnp.sqrt(jnp.clip(a=(jnp.square(real) + jnp.square(imag)),a_min=1e-7)).transpose(0,2, 1)
 
 
 class SpectralConvergengeLoss():

@@ -53,7 +53,7 @@ class DiscriminatorR(nn.Module):
         #x = x.squeeze(1)
         x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=hop_length, nperseg=win_length) #[B, F, TT, 2]
         #mag = jnp.linalg.norm(x[2], ord=2, axis =-1) #[B, F, TT]
-        mag = jnp.sqrt((jnp.real(x[2]).astype(jnp.float64))**2+(jnp.imag(x[2]).astype(jnp.float64))**2).astype(jnp.float32)
+        mag = jnp.sqrt(jnp.square(jnp.real(x[2]))+jnp.square(jnp.imag(x[2])))
         return mag
 
 
