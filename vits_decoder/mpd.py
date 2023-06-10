@@ -20,11 +20,11 @@ class DiscriminatorP(nn.Module):
         #norm_f = weight_norm if self.hp.mpd.use_spectral_norm == False else spectral_norm
 
         self.convs = [
-            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0)),
-            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1), padding=(kernel_size // 2, 0)),
-            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0)),
-            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0)),
-            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding=(kernel_size // 2, 0)),
+            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0),kernel_init=normal_init(0.02)),
+            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1), padding=(kernel_size // 2, 0),kernel_init=normal_init(0.02)),
+            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0),kernel_init=normal_init(0.02)),
+            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding=(kernel_size // 2, 0),kernel_init=normal_init(0.02)),
+            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding=(kernel_size // 2, 0),kernel_init=normal_init(0.02)),
         ]
         self.norms = [
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
@@ -33,7 +33,7 @@ class DiscriminatorP(nn.Module):
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
         ]
-        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding=(1, 0))
+        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding=(1, 0),kernel_init=normal_init(0.02))
         self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
 
     def __call__(self, x):

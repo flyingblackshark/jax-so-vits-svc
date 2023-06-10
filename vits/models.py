@@ -107,7 +107,7 @@ class ResidualCouplingBlock(nn.Module):
 
 
 class PosteriorEncoder(nn.Module):
-    in_channels:int
+    #in_channels:int
     out_channels:int
     hidden_channels:int
     kernel_size:int
@@ -191,7 +191,7 @@ class SynthesizerTrn(nn.Module):
         #     self.hp.vits.spk_dim,
         # )
         self.enc_q = PosteriorEncoder(
-            self.spec_channels,
+           # self.spec_channels,
             self.hp.vits.inter_channels,
             self.hp.vits.hidden_channels,
             5,
