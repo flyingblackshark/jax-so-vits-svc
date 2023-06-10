@@ -11,7 +11,8 @@ import flax.linen as nn
 
 from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
-
+from jax.nn.initializers import normal as normal_init
+from jax.nn.initializers import constant as constant_init
 
 class SpeakerAdapter(nn.Module):
     speaker_dim : int
@@ -22,8 +23,8 @@ class SpeakerAdapter(nn.Module):
         # self.speaker_dim = self.speaker_dim
         # self.adapter_dim = self.adapter_dim
         # self.epsilon = self.epsilon
-        self.W_scale = nn.Dense(features=self.adapter_dim)
-        self.W_bias = nn.Dense(features=self.adapter_dim)
+        self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.))
+        self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.))
         #self.reset_parameters()
 
     # def reset_parameters(self):

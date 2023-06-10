@@ -30,11 +30,11 @@ class AMPBlock(nn.Module):
         super(AMPBlock, self).__init__()
         self.convs1 = [
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[0],
-                               padding="SAME"),
+                               padding="SAME",kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],
-                               padding="SAME"),
+                               padding="SAME",kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],
-                               padding="SAME")
+                               padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms1=[
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
@@ -45,11 +45,11 @@ class AMPBlock(nn.Module):
 
         self.convs2 = [
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
-                               padding="SAME"),
+                               padding="SAME",kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
-                               padding="SAME"),
+                               padding="SAME",kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
-                               padding="SAME")
+                               padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms2=[
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
