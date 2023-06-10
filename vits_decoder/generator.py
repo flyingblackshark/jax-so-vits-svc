@@ -76,7 +76,7 @@ class Generator(nn.Module):
                        features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                        kernel_size= k,
                         strides=[u],
-                        padding="SAME")
+                        padding="SAME",kernel_init=normal_init(0.01))
                 )
             
             # nsf
@@ -88,13 +88,13 @@ class Generator(nn.Module):
                         features=self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         kernel_size=[stride_f0 * 2],
                         strides=[stride_f0],
-                        padding="SAME",
+                        padding="SAME",kernel_init=normal_init(0.01)
                     )
                 )
             else:
                 noise_convs.append(
                     nn.Conv(features=self.hp.gen.upsample_initial_channel //
-                           (2 ** (i + 1)), kernel_size=[1])
+                           (2 ** (i + 1)), kernel_size=[1],kernel_init=normal_init(0.01))
                 )
 
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
