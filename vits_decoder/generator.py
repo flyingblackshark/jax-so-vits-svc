@@ -87,7 +87,7 @@ class Generator(nn.Module):
                     nn.Conv(
                         features=self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         kernel_size=[stride_f0 * 2],
-                        strides=stride_f0,
+                        strides=[stride_f0],
                         padding="SAME",
                         kernel_init=normal_init(0.01)
                     )
