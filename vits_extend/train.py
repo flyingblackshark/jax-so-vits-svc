@@ -148,9 +148,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
         loss = jax.lax.pmean(loss, axis_name='num_devices')
-        #jax.debug.print("{}",grads)
-        # Update the Generator through gradient descent.
-       
+
         new_generator_state = generator_state.apply_gradients(
             grads=grads, batch_stats=mutables['batch_stats'])
     
