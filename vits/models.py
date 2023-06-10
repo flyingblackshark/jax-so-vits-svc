@@ -113,21 +113,21 @@ class PosteriorEncoder(nn.Module):
     kernel_size:int
     dilation_rate:int
     n_layers:int
-    gin_channels:int=0,
+   # gin_channels:int=0,
     def setup(
         self
     ):
         #super().__init__()
         #self.out_channels = out_channels
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.02))
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
         self.enc = modules.WN(
             self.hidden_channels,
             self.kernel_size,
             self.dilation_rate,
             self.n_layers,
-            gin_channels=self.gin_channels,
+           # gin_channels=self.gin_channels,
         )
-        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],kernel_init=normal_init(0.02))
+        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],kernel_init=normal_init(0.01))
 
     def __call__(self, x, x_lengths,g=None):
         rng = random.PRNGKey(1234)
@@ -197,7 +197,7 @@ class SynthesizerTrn(nn.Module):
             5,
             1,
             16,
-            gin_channels=self.hp.vits.gin_channels,
+           # gin_channels=self.hp.vits.gin_channels,
         )
         self.flow = ResidualCouplingBlock(
             self.hp.vits.inter_channels,

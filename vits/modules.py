@@ -132,7 +132,7 @@ class WN(nn.Module):
     kernel_size:int
     dilation_rate:int
     n_layers:int
-    gin_channels:int=0
+    #gin_channels:int=0
     p_dropout:float=0
     def setup(self):
         #super(WN, self).__init__()
@@ -148,10 +148,10 @@ class WN(nn.Module):
         res_skip_layers = []#torch.nn.ModuleList()
         self.drop = nn.Dropout(self.p_dropout,deterministic=True)
 
-        if self.gin_channels != 0:
-            self.cond_layer = nn.Conv(
-                features=2 * self.hidden_channels * self.n_layers,kernel_size= [1],kernel_init=normal_init(0.02)
-            )
+        #if self.gin_channels != 0:
+        self.cond_layer = nn.Conv(
+            features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=normal_init(0.01)
+        )
             #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
 
         for i in range(self.n_layers):
@@ -162,7 +162,7 @@ class WN(nn.Module):
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
                 padding="SAME",
-                kernel_init=normal_init(0.02)
+                kernel_init=normal_init(0.01)
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
@@ -173,7 +173,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.02))
+            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.01))
             #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             res_skip_layers.append(res_skip_layer)
         self.res_skip_layers = res_skip_layers
