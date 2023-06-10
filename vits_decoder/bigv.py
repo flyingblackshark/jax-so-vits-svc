@@ -41,6 +41,7 @@ class AMPBlock(nn.Module):
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
         ]
+        #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
         #self.convs1.apply(init_weights)
 
         self.convs2 = [
@@ -56,6 +57,7 @@ class AMPBlock(nn.Module):
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
         ]
+        #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
         #self.convs2.apply(init_weights)
 
     def __call__(self, x):

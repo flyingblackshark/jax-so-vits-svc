@@ -26,6 +26,7 @@ class DiscriminatorR(nn.Module):
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
             nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
         ]
+        #self.norms=[nn.GroupNorm(scale_init=normal_init(0.02)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02))
         #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
     def __call__(self, x):

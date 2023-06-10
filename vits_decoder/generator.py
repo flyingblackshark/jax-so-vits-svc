@@ -65,6 +65,7 @@ class Generator(nn.Module):
         self.scale_factor = np.prod(self.hp.gen.upsample_rates)
         self.m_source = SourceModuleHnNSF(sampling_rate=self.hp.data.sampling_rate)
         noise_convs = []#nn.ModuleList()
+        noise_conv_norms = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
         ups = []#nn.ModuleList()
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
@@ -92,19 +93,23 @@ class Generator(nn.Module):
                         kernel_init=normal_init(0.01)
                     )
                 )
+                noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
             else:
                 noise_convs.append(
                     nn.Conv(features=self.hp.gen.upsample_initial_channel //
                            (2 ** (i + 1)), kernel_size=[1],
                            kernel_init=normal_init(0.01))
                 )
+                noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
 
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
         resblocks = []#nn.ModuleList()
+        resblocks_norms=[]
         for i in range(len(ups)):
             ch = self.hp.gen.upsample_initial_channel // (2 ** (i + 1))
             for k, d in zip(self.hp.gen.resblock_kernel_sizes, self.hp.gen.resblock_dilation_sizes):
                 resblocks.append(AMPBlock(ch, k, d))
+                resblocks_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
 
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1, padding="SAME", use_bias=False,kernel_init=normal_init(0.01))
@@ -112,6 +117,8 @@ class Generator(nn.Module):
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
+        self.noise_conv_norms = noise_conv_norms
+        self.resblocks_norms = resblocks_norms
         #self.ups.apply(init_weights)
 
     def __call__(self, spk, x, f0):
@@ -136,14 +143,17 @@ class Generator(nn.Module):
             x = self.ups[i](x)
             # nsf
             x_source = self.noise_convs[i](har_source)
+            x_source=self.noise_conv_norms[i](x_source)
             x = x + x_source
             # AMP blocks
             xs = None
             for j in range(self.num_kernels):
                 if xs is None:
                     xs = self.resblocks[i * self.num_kernels + j](x)
+                    xs = self.resblocks_norms[i * self.num_kernels + j](xs)
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
+                    xs = self.resblocks_norms[i * self.num_kernels + j](xs)
             x = xs / self.num_kernels
 
         # post conv

@@ -125,7 +125,6 @@ class PosteriorEncoder(nn.Module):
             self.kernel_size,
             self.dilation_rate,
             self.n_layers,
-           # gin_channels=self.gin_channels,
         )
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],kernel_init=normal_init(0.01))
 
@@ -208,12 +207,13 @@ class SynthesizerTrn(nn.Module):
             gin_channels=self.hp.vits.spk_dim
         )
         self.dec = Generator(hp=self.hp)
-
+        self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l):
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
-        
-        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
+        spk = self.norm(spk)
+        #g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
+        g = jnp.expand_dims(self.emb_g(spk),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit))
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
