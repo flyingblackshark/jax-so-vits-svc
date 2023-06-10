@@ -161,7 +161,8 @@ class WN(nn.Module):
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
-                padding="SAME",kernel_init=normal_init(0.02)
+                padding="SAME",
+                kernel_init=normal_init(0.02)
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
