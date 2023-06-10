@@ -140,10 +140,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Loss
             loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
-            return loss_g, mutables
+            return loss_g, mutables,fake_audio,audio
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,mutables), grads = grad_fn(generator_state.params)
+        (loss,(mutables,fake_audio,audio)), grads = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -152,26 +152,27 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_generator_state = generator_state.apply_gradients(
             grads=grads, batch_stats=mutables['batch_stats'])
     
-        return new_generator_state, loss#,loss_m,loss_s,loss_k,loss_r
+        return new_generator_state, loss,fake_audio,audio#,loss_m,loss_s,loss_k,loss_r
        
     @partial(jax.pmap, axis_name='num_devices')
     def discriminator_step(generator_state:TrainState,
                     discriminator_state: TrainState,
-                    ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,
+                    audio_g:jnp.ndarray,
+                    fake_audio_g:jnp.ndarray,
                     key: PRNGKey):
 
         def loss_fn(params):
-            (fake_audio, ids_slice, z_mask, \
-            (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
-                {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
-                ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
-            audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            # (fake_audio, ids_slice, z_mask, \
+            # (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
+            #     {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
+            #     ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
+            # audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             disc_fake,mutables  = discriminator_state.apply_fn(
                 {'params': params,'batch_stats': discriminator_state.batch_stats},    
-             fake_audio, mutable=['batch_stats'])
+             fake_audio_g, mutable=['batch_stats'])
             disc_real,mutables  = discriminator_state.apply_fn(
                 {'params': params,'batch_stats':  mutables['batch_stats']},
-                audio, mutable=['batch_stats'])
+                audio_g, mutable=['batch_stats'])
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean((score_real - 1.0)**2)
@@ -253,9 +254,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state, generator_loss= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
+            generator_state, generator_loss,fake_audio_g,audio_g= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
+            fake_audio_g = shard(fake_audio_g)
+            audio_g = shard(audio_g)
             #print("Working!2")
-            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_discriminator)
+            discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,audio_g=audio_g,fake_audio_g=fake_audio_g,key=key_discriminator)
             #print("Working!3")
 
 
