@@ -126,7 +126,7 @@ import jax
 #             x = x + y
 #         return x * x_mask
 
-
+from jax.nn.initializers import normal as normal_init
 class WN(nn.Module):
     hidden_channels:int
     kernel_size:int
@@ -150,7 +150,7 @@ class WN(nn.Module):
 
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(
-                features=2 * self.hidden_channels * self.n_layers,kernel_size= [1]
+                features=2 * self.hidden_channels * self.n_layers,kernel_size= [1],kernel_init=normal_init(0.02)
             )
             #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
 
@@ -161,7 +161,7 @@ class WN(nn.Module):
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
-                padding="SAME",
+                padding="SAME",kernel_init=normal_init(0.02)
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)

@@ -47,15 +47,15 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
-        tx = optax.chain(
-        optax.clip_by_global_norm(1),
-        optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
-        optax.scale(-hp.train.learning_rate))
-        #tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
-        fake_ppg = jnp.zeros((8,400,1280))
-        fake_pit = jnp.zeros((8,400))
-        fake_spec = jnp.zeros((8,513,400))
-        fake_spk = jnp.zeros((8,256))
+        # tx = optax.chain(
+        # optax.clip_by_global_norm(1),
+        # optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
+        # optax.scale(-hp.train.learning_rate))
+        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        fake_ppg = jnp.ones((8,400,1280))
+        fake_pit = jnp.ones((8,400))
+        fake_spec = jnp.ones((8,513,400))
+        fake_spk = jnp.ones((8,256))
         fake_spec_l = jnp.asarray(np.asarray(400))
         fake_ppg_l = jnp.asarray(np.asarray(400))
 
@@ -69,12 +69,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        fake_audio = jnp.zeros((8,1,8000))
-        tx = optax.chain(
-        optax.clip_by_global_norm(1),
-        optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
-        optax.scale(-hp.train.learning_rate))
-        #tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        fake_audio = jnp.ones((8,1,8000))
+        # tx = optax.chain(
+        # optax.clip_by_global_norm(1),
+        # optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
+        # optax.scale(-hp.train.learning_rate))
+        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         variables = model.init(rng, fake_audio)
        
         state = TrainState.create(apply_fn=model.apply, tx=tx, 

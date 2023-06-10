@@ -10,6 +10,7 @@ from vits import commons
 from functools import partial
 import flax
 import jax
+from jax.nn.initializers import normal as normal_init
 class Encoder(nn.Module):
     hidden_channels:int
     filter_channels:int
@@ -32,7 +33,8 @@ class Encoder(nn.Module):
                     # hidden_channels,
                     num_heads=self.n_heads,
                     dropout_rate=self.p_dropout,
-                    deterministic=True
+                    deterministic=True,
+                    kernel_init=normal_init(0.02)
                     # proximal_bias=proximal_bias,
                     # proximal_init=proximal_init,
                 )
@@ -356,7 +358,7 @@ class Encoder(nn.Module):
 #         diff = torch.unsqueeze(r, 0) - torch.unsqueeze(r, 1)
 #         return torch.unsqueeze(torch.unsqueeze(-torch.log1p(torch.abs(diff)), 0), 0)
 
-
+from jax.nn.initializers import normal as normal_init
 class FFN(nn.Module):
     out_channels:int
     filter_channels:int
@@ -380,8 +382,8 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding)
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.02))
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.02))
         self.drop = nn.Dropout(self.p_dropout,deterministic=True)
 
         
