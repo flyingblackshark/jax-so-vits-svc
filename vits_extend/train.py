@@ -150,14 +150,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loss = jax.lax.pmean(loss, axis_name='num_devices')
         #jax.debug.print("{}",grads)
         # Update the Generator through gradient descent.
-        gradient_transform = optax.chain(
-            optax.clip_by_global_norm(1.0),  # Clip by the gradient by the global norm.
-            optax.scale_by_adam(),  # Use the updates from adam.
-            #optax.scale_by_schedule(scheduler),  # Use the learning rate from the scheduler.
-            # Scale updates by -1 since optax.apply_updates is additive and we want to descend on the loss.
-            optax.scale(-1.0)
-        )
-        updates, opt_state = gradient_transform.update(grads, opt_state)
+       
         new_generator_state = generator_state.apply_gradients(
             grads=grads, batch_stats=mutables['batch_stats'])
     
