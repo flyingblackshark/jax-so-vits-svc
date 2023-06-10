@@ -156,12 +156,12 @@ class WN(nn.Module):
 
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            padding = int((self.kernel_size * dilation - dilation) / 2)
+            #padding = int((self.kernel_size * dilation - dilation) / 2)
             in_layer = nn.Conv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
-                padding=padding,
+                padding="SAME",
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
