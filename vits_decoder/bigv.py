@@ -26,6 +26,7 @@ class AMPBlock(nn.Module):
     channels:int
     kernel_size:int=3
     dilation:Tuple[int]=(1, 3, 5)
+    train:bool = True
     def setup(self):
         super(AMPBlock, self).__init__()
         self.convs1 = [
@@ -37,9 +38,9 @@ class AMPBlock(nn.Module):
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms1=[
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02))
         ]
         #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
         #self.convs1.apply(init_weights)
@@ -53,9 +54,9 @@ class AMPBlock(nn.Module):
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms2=[
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02)),
+            nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.02))
         ]
         #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
         #self.convs2.apply(init_weights)

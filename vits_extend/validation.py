@@ -10,7 +10,8 @@ import jax.numpy as jnp
 from vits_extend.stft import TacotronSTFT
 from vits_extend.writer import MyWriter
 from vits.models import SynthesizerTrn
-def validate(hp, args, generator, discriminator, valloader, stft, writer, step):
+@jax.pmap
+def validate(hp, args, generator, discriminator, valloader, writer, step):
     # generator.eval()
     # discriminator.eval()
     # torch.backends.cudnn.benchmark = False
@@ -38,7 +39,7 @@ def validate(hp, args, generator, discriminator, valloader, stft, writer, step):
         #     fake_audio = generator.module.infer(ppg, pit, spk, ppg_l)[
         #         :, :, :audio.size(2)]
         # else:
-        fake_audio = model.apply({'params': generator.params}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer)
+        fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg, pit, spk, ppg_l,train=False,method=SynthesizerTrn.infer, mutable=False)
         #fake_audio = generator.infer(ppg, pit, spk, ppg_l)[:, :, :audio.size(2)]
 
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))

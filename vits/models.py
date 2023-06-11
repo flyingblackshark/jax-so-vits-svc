@@ -166,6 +166,7 @@ class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
     hp:tuple
+    train: bool = True
     def setup(
         self,
         #spec_channels,
@@ -207,7 +208,7 @@ class SynthesizerTrn(nn.Module):
             4,
             gin_channels=self.hp.vits.spk_dim
         )
-        self.dec = Generator(hp=self.hp)
+        self.dec = Generator(hp=self.hp,train=self.train)
         #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l):
         rng = random.PRNGKey(1234)
