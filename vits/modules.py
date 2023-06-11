@@ -154,7 +154,7 @@ class WN(nn.Module):
         )
             #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
         #in_layer_norms = []
-        res_skip_layer_norms = []
+        #res_skip_layer_norms = []
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             #padding = int((self.kernel_size * dilation - dilation) / 2)
