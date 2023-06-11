@@ -52,10 +52,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
         # optax.scale(-hp.train.learning_rate))
         tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
-        fake_ppg = jnp.ones((8,400,1280))
-        fake_pit = jnp.ones((8,400))
-        fake_spec = jnp.ones((8,513,400))
-        fake_spk = jnp.ones((8,256))
+        fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
+        fake_pit = jnp.ones((hp.train.batch_size,400))
+        fake_spec = jnp.ones((hp.train.batch_size,513,400))
+        fake_spk = jnp.ones((hp.train.batch_size,256))
         fake_spec_l = jnp.asarray(np.asarray(400))
         fake_ppg_l = jnp.asarray(np.asarray(400))
 
@@ -69,7 +69,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        fake_audio = jnp.ones((8,1,8000))
+        fake_audio = jnp.ones((hp.train.batch_size,1,8000))
         # tx = optax.chain(
         # optax.clip_by_global_norm(1),
         # optax.scale_by_adam(b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps),
@@ -108,7 +108,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
           
             #Multi-Resolution STFT Loss
             
-            sc_loss, mag_loss = jax.lax.stop_gradient(stft_criterion(fake_audio.squeeze(1), audio.squeeze(1)))
+            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss
