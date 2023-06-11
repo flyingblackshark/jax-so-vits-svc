@@ -380,13 +380,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             step += 1
             # logging
-            loss_g = np.mean(np.asarray(loss_g))
-            loss_d = np.mean(np.asarray(loss_d))
-            loss_s = np.mean(np.asarray(loss_s))
-            loss_m = np.mean(np.asarray(loss_m))
-            loss_k = np.mean(np.asarray(loss_k))
-            loss_r = np.mean(np.asarray(loss_r))
-          
+            # loss_g = np.mean(np.asarray(loss_g))
+            # loss_d = np.mean(np.asarray(loss_d))
+            # loss_s = np.mean(np.asarray(loss_s))
+            # loss_m = np.mean(np.asarray(loss_m))
+            # loss_k = np.mean(np.asarray(loss_k))
+            # loss_r = np.mean(np.asarray(loss_r))
+            loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = \
+            jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
             if rank == 0 and step % hp.log.info_interval == 0:
                 #metrics = jax.device_get([loss_g[0], loss_d[1]])
                 # print("g %.04f d %.04f  | step %d" % (
