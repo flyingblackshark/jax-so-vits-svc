@@ -86,36 +86,40 @@ def train(rank, args, chkpt_path, hp, hp_str):
                        discriminator_state: TrainState,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
                       # key: PRNGKey):
-        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+      
+
+        def loss_fn(params):
+            stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
                     win_length=hp.data.win_length,
                     n_mel_channels=hp.data.mel_channels,
                     sampling_rate=hp.data.sampling_rate,
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
-        stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-
-        def loss_fn(params):
+            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params,'batch_stats': generator_state.batch_stats},     
                 ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            #temp = jax.grad(stft.mel_spectrogram(fake_audio.squeeze(1)))
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
           
-            # Multi-Resolution STFT Loss
+            #Multi-Resolution STFT Loss
+            
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss
             #disc_fake = model_d(fake_audio)
+           
             disc_fake,_ = discriminator_state.apply_fn(
             {'params': discriminator_state.params ,'batch_stats': discriminator_state.batch_stats},
             fake_audio, mutable=['batch_stats'])
-            score_loss:jnp.float32 = 0.0
+            score_loss = 0.0
             for (_, score_fake) in disc_fake:
-                score_loss += jnp.mean((score_fake - 1.0)**2,dtype=jnp.float32)
+                score_loss += jnp.mean((score_fake - 1.0)**2)
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
@@ -124,20 +128,20 @@ def train(rank, args, chkpt_path, hp, hp_str):
             {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
             audio, mutable=['batch_stats'])
 
-            feat_loss:jnp.float32 = 0.0
+            feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
                 for fake, real in zip(feat_fake, feat_real):
-                    feat_loss += jnp.mean(jnp.abs(fake - real),dtype=jnp.float32)
+                    feat_loss += jnp.mean(jnp.abs(fake - real))
             feat_loss = feat_loss / len(disc_fake)
             feat_loss = feat_loss * 2
 
             # Kl Loss
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            loss_kl_f = jnp.mean(loss_kl_f,dtype=jnp.float32)
-            loss_kl_r = jnp.mean(loss_kl_r,dtype=jnp.float32)
+            loss_kl_f = jnp.mean(loss_kl_f)
+            loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
-            loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
+            loss_g = mel_loss +score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
             return loss_g, (mutables,fake_audio,audio)
 

@@ -68,17 +68,18 @@ class Generator(nn.Module):
         noise_conv_norms = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
         ups = []#nn.ModuleList()
+        ups_norm = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
                     nn.ConvTranspose(
-                       # hp.gen.upsample_initial_channel // (2 ** i),
                        features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                        kernel_size= k,
                         strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
+            ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -119,6 +120,9 @@ class Generator(nn.Module):
         self.resblocks = resblocks
         self.noise_conv_norms = noise_conv_norms
         self.resblocks_norms = resblocks_norms
+        self.norm1=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        self.norm2=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        self.ups_norm=ups_norm
         #self.ups.apply(init_weights)
 
     def __call__(self, spk, x, f0):
@@ -130,20 +134,23 @@ class Generator(nn.Module):
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
-        f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='bilinear').transpose(0,2,1)
+        
+        f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
         #f0 = self.f0_upsamp(f0).transpose(1, 2)
+        
         har_source = self.m_source(f0)
         har_source = har_source.transpose(0,2,1)
         x = x.transpose(0,2,1)
         x = self.conv_pre(x)
-
+        x = self.norm1(x)
         for i in range(self.num_upsamples):
             x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x)
+            x = self.ups_norm[i](x)
             # nsf
             x_source = self.noise_convs[i](har_source)
-            x_source=self.noise_conv_norms[i](x_source)
+            x_source = self.noise_conv_norms[i](x_source)
             x = x + x_source
             # AMP blocks
             xs = None
@@ -159,8 +166,10 @@ class Generator(nn.Module):
         # post conv
         x = nn.leaky_relu(x)
         x = self.conv_post(x)
-        x = jnp.tanh(x)
+        x = self.norm2(x)
         x = x.transpose(0,2,1)
+       
+        x = nn.tanh(x) 
         return x
 
     # def remove_weight_norm(self):
@@ -214,5 +223,5 @@ class Generator(nn.Module):
         # post conv
         x = nn.functional.leaky_relu(x)
         x = self.conv_post(x)
-        x = jnp.tanh(x)
+        x = nn.tanh(x)
         return x

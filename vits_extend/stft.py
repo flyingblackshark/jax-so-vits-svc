@@ -85,7 +85,7 @@ class TacotronSTFT():
         spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size)
         spec = spec[2]
         #spec = jnp.sqrt((spec**2).sum(-1) + (1e-9))
-        spec = jnp.sqrt((jnp.square(jnp.real(spec[2]))+jnp.square(jnp.imag(spec[2]))) + (1e-9))
+        spec = jnp.sqrt((jnp.square(jnp.real(spec))+jnp.square(jnp.imag(spec))) + (1e-9))
 
         spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
