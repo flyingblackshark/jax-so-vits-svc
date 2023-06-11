@@ -143,14 +143,18 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Loss
             loss_g = mel_loss +score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
-            return loss_g, (mutables,fake_audio,audio)
+            return loss_g, (mutables,fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,(mutables,fake_audio_g,audio_g)), grads = grad_fn(generator_state.params)
+        (loss,(mutables,fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
         loss_g = jax.lax.pmean(loss, axis_name='num_devices')
+        loss_m = jax.lax.pmean(mel_loss, axis_name='num_devices')
+        loss_s = jax.lax.pmean(stft_loss, axis_name='num_devices')
+        loss_k = jax.lax.pmean(loss_kl_f, axis_name='num_devices')
+        loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
 
         new_generator_state = generator_state.apply_gradients(
             grads=grads, batch_stats=mutables['batch_stats'])
@@ -187,7 +191,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(
         grads=grads, batch_stats=mutables['batch_stats'])
-        return new_generator_state,new_discriminator_state,loss_g,loss_d#,loss_m,loss_s,loss_k,loss_r
+        return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     # @partial(jax.pmap, axis_name='num_devices')
     # def generator_step(generator_state: TrainState,
     #                    discriminator_state: TrainState,
@@ -361,7 +365,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state,discriminator_state,loss_g,loss_d=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
+            generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
             # generator_state, generator_loss,fake_audio_g,audio_g= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
             # fake_audio_g = shard(fake_audio_g)
             # audio_g = shard(audio_g)
@@ -376,22 +380,22 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
             step += 1
             # logging
-            # loss_g = generator_loss#loss_g.item()
-            # loss_d = discriminator_loss#loss_d.item()
-            # loss_s = stft_loss.item()
-            # loss_m = mel_loss.item()
-            # loss_k = loss_kl_f.item()
-            # loss_r = loss_kl_r.item()
+            loss_g = np.mean(loss_g)
+            loss_d = np.mean(loss_d)
+            loss_s = np.mean(loss_s)
+            loss_m = np.mean(loss_m)
+            loss_k = np.mean(loss_k)
+            loss_r = np.mean(loss_r)
           
-            #if rank == 0 and step % hp.log.info_interval == 0:
-            metrics = jax.device_get([loss_g[0], loss_d[1]])
-            # print("g %.04f d %.04f  | step %d" % (
-            #      loss_g,  loss_d,  step))
-            print(metrics)
-            print(loss_d)
-            print(loss_g)
-            #     writer.log_training(
-            #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, step)
-            #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
-            #         loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, step))
+            if rank == 0 and step % hp.log.info_interval == 0:
+                #metrics = jax.device_get([loss_g[0], loss_d[1]])
+                # print("g %.04f d %.04f  | step %d" % (
+                #      loss_g,  loss_d,  step))
+                #print(metrics)
+                # print(np.mean(loss_d))
+                # print(np.mean(loss_g))
+                writer.log_training(
+                    loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
+                logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f  | step %d" % (
+                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, step))
 
