@@ -192,121 +192,57 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_discriminator_state = discriminator_state.apply_gradients(
         grads=grads, batch_stats=mutables['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
-    # @partial(jax.pmap, axis_name='num_devices')
-    # def generator_step(generator_state: TrainState,
-    #                    discriminator_state: TrainState,
-    #                    #real_data: jnp.ndarray,
-    #                    ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,
-    #                    key: PRNGKey):
-    #     stft = TacotronSTFT(filter_length=hp.data.filter_length,
-    #                 hop_length=hp.data.hop_length,
-    #                 win_length=hp.data.win_length,
-    #                 n_mel_channels=hp.data.mel_channels,
-    #                 sampling_rate=hp.data.sampling_rate,
-    #                 mel_fmin=hp.data.mel_fmin,
-    #                 mel_fmax=hp.data.mel_fmax)
-    #     stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-
-    #     def loss_fn(params):
-    #         (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
-    #             {'params': params,'batch_stats': generator_state.batch_stats},     
-    #             ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
-    #         audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-    #         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
-    #         mel_real = stft.mel_spectrogram(audio.squeeze(1))
-    #         mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
-          
-    #         # Multi-Resolution STFT Loss
-    #         sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
-    #         stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
-
-    #         # Generator Loss
-    #         #disc_fake = model_d(fake_audio)
-    #         disc_fake,_ = discriminator_state.apply_fn(
-    #         {'params': discriminator_state.params ,'batch_stats': discriminator_state.batch_stats},
-    #         fake_audio, mutable=['batch_stats'])
-    #         score_loss:jnp.float32 = 0.0
-    #         for (_, score_fake) in disc_fake:
-    #             score_loss += jnp.mean((score_fake - 1.0)**2,dtype=jnp.float32)
-    #         score_loss = score_loss / len(disc_fake)
-
-    #         # Feature Loss
-    #         # disc_real = model_d(audio)
-    #         disc_real,_ = discriminator_state.apply_fn(
-    #         {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
-    #         audio, mutable=['batch_stats'])
-
-    #         feat_loss:jnp.float32 = 0.0
-    #         for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
-    #             for fake, real in zip(feat_fake, feat_real):
-    #                 feat_loss += jnp.mean(jnp.abs(fake - real),dtype=jnp.float32)
-    #         feat_loss = feat_loss / len(disc_fake)
-    #         feat_loss = feat_loss * 2
-
-    #         # Kl Loss
-    #         loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-    #         loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-    #         loss_kl_f = jnp.mean(loss_kl_f,dtype=jnp.float32)
-    #         loss_kl_r = jnp.mean(loss_kl_r,dtype=jnp.float32)
-    #         # Loss
-    #         loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
-
-    #         return loss_g, mutables,fake_audio,audio
-
-    #     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-    #     (loss,(mutables,fake_audio,audio)), grads = grad_fn(generator_state.params)
-
-    #     # Average across the devices.
-    #     grads = jax.lax.pmean(grads, axis_name='num_devices')
-    #     loss = jax.lax.pmean(loss, axis_name='num_devices')
-
-    #     new_generator_state = generator_state.apply_gradients(
-    #         grads=grads, batch_stats=mutables['batch_stats'])
-    
-    #     return new_generator_state, loss,fake_audio,audio#,loss_m,loss_s,loss_k,loss_r
-       
-    # @partial(jax.pmap, axis_name='num_devices')
-    # def discriminator_step(generator_state:TrainState,
-    #                 discriminator_state: TrainState,
-    #                 audio_g:jnp.ndarray,
-    #                 fake_audio_g:jnp.ndarray,
-    #                 key: PRNGKey):
-
-    #     def loss_fn(params):
-    #         # (fake_audio, ids_slice, z_mask, \
-    #         # (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
-    #         #     {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
-    #         #     ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
-    #         # audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-    #         disc_fake,mutables  = discriminator_state.apply_fn(
-    #             {'params': params,'batch_stats': discriminator_state.batch_stats},    
-    #          fake_audio_g, mutable=['batch_stats'])
-    #         disc_real,mutables  = discriminator_state.apply_fn(
-    #             {'params': params,'batch_stats':  mutables['batch_stats']},
-    #             audio_g, mutable=['batch_stats'])
-    #         loss_d = 0.0
-    #         for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-    #             loss_d += jnp.mean((score_real - 1.0)**2)
-    #             loss_d += jnp.mean((score_fake)**2)
-    #         loss_d = loss_d / len(disc_fake)
-          
-    #         return loss_d,mutables 
+    @jax.pmap
+    def validate(generator, discriminator, valloader, writer, step):
+        # generator.eval()
+        # discriminator.eval()
+        # torch.backends.cudnn.benchmark = False
+        model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+            segment_size=hp.data.segment_size // hp.data.hop_length,
+            hp=hp,train=False)
         
-    #     # Generate data with the Generator, critique it with the Discriminator.
-    #     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-    #     #optax.clip_by_global_norm(None)
-    #     (loss,mutables), grads = grad_fn(discriminator_state.params)
+        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                        hop_length=hp.data.hop_length,
+                        win_length=hp.data.win_length,
+                        n_mel_channels=hp.data.mel_channels,
+                        sampling_rate=hp.data.sampling_rate,
+                        mel_fmin=hp.data.mel_fmin,
+                        mel_fmax=hp.data.mel_fmax)
+        loader = tqdm.tqdm(valloader, desc='Validation loop')
+        mel_loss = 0.0
+        for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
+            ppg = shard(ppg)
+            pit = shard(pit)
+            spk = shard(spk)
+            ppg_l = shard(ppg_l)
+            audio = shard(audio)
 
-    #     # Average cross the devices.
-    #     grads = jax.lax.pmean(grads, axis_name='num_devices')
-    #     loss = jax.lax.pmean(loss, axis_name='num_devices')
+            # if hasattr(generator, 'module'):
+            #     fake_audio = generator.module.infer(ppg, pit, spk, ppg_l)[
+            #         :, :, :audio.size(2)]
+            # else:
+            fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
+            #fake_audio = generator.infer(ppg, pit, spk, ppg_l)[:, :, :audio.size(2)]
 
-    #     # Update the discriminator through gradient descent.
-    #     new_discriminator_state = discriminator_state.apply_gradients(
-    #     grads=grads, batch_stats=mutables['batch_stats'])
-        
-    #     return new_discriminator_state, loss
-    
+            mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
+            mel_real = stft.mel_spectrogram(audio.squeeze(1))
+
+            mel_loss += jnp.mean(optax.l2_loss(mel_fake, mel_real)) 
+
+            if idx < hp.log.num_audio:
+                spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
+                spec_real = stft.linear_spectrogram(audio.squeeze(1))
+
+                audio = audio[0][0]
+                fake_audio = fake_audio[0][0]
+                spec_fake = spec_fake[0]
+                spec_real = spec_real[0]
+                writer.log_fig_audio(
+                    audio, fake_audio, spec_fake, spec_real, idx, step)
+
+        mel_loss = mel_loss / len(valloader.dataset)
+
+        writer.log_validation(mel_loss, generator, discriminator, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     key_generator, key_discriminator, key = jax.random.split(key, 3)
@@ -348,14 +284,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         #trainloader.batch_sampler.set_epoch(epoch)
         if rank == 0 and epoch % hp.log.eval_interval == 0:
-            validate(hp, args, generator_state, discriminator_state, valloader, writer, step)
+            validate(generator_state, discriminator_state, valloader, writer, step)
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
             loader = trainloader
         #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
-            #print("Working!1")
+
             ppg = shard(ppg)
             ppg_l = shard(ppg_l)
             pit = shard(pit)
