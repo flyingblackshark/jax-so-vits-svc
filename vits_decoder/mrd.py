@@ -35,7 +35,7 @@ class DiscriminatorR(nn.Module):
         x = self.spectrogram(x)
         #x = jnp.expand_dims(x,0)
         x=x.transpose(0,1,3,2)
-        for l in zip(self.convs):
+        for l in self.convs:
             x = l(x)
             #x = n(x)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
