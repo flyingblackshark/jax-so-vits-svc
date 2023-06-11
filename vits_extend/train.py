@@ -20,12 +20,12 @@ from vits_extend.dataloader import create_dataloader_eval
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
 from vits_extend.stft_loss import MultiResolutionSTFTLoss
-from vits_extend.validation import validate
+#from vits_extend.validation import validate
 from vits_decoder.discriminator import Discriminator
 from vits.models import SynthesizerTrn
 from vits import commons
 from vits.losses import kl_loss
-from vits.commons import clip_grad_value_
+#from vits.commons import clip_grad_value_
 import jax.numpy as jnp
 
 from functools import partial
