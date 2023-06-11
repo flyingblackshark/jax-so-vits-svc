@@ -26,13 +26,13 @@ class DiscriminatorP(nn.Module):
             nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.02)),
             nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding="SAME",kernel_init=normal_init(0.02)),
         ]
-        self.norms = [
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
-        ]
+        # self.norms = [
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        # ]
        # self.norms=[nn.GroupNorm(scale_init=normal_init(0.02)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.02))
         #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
@@ -48,9 +48,9 @@ class DiscriminatorP(nn.Module):
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
         x=x.transpose(0,1,3,2)
-        for l,n in zip(self.convs,self.norms):
+        for l,n in zip(self.convs):
             x = l(x)
-            x = n(x)
+            #x = n(x)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)

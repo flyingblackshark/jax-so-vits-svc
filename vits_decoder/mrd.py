@@ -19,13 +19,13 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.02)),
             nn.Conv(features=32, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02)),
         ]
-        self.norms = [
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-            nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
-        ]
+        # self.norms = [
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        # ]
         #self.norms=[nn.GroupNorm(scale_init=normal_init(0.02)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02))
         #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
@@ -35,9 +35,9 @@ class DiscriminatorR(nn.Module):
         x = self.spectrogram(x)
         #x = jnp.expand_dims(x,0)
         x=x.transpose(0,1,3,2)
-        for l,n in zip(self.convs,self.norms):
+        for l in zip(self.convs):
             x = l(x)
-            x = n(x)
+            #x = n(x)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)
