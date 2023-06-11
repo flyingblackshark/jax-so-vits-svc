@@ -321,9 +321,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     step = 0
    
 
-                        #center=False)
-                        #device=device)
-    # define logger, writer, valloader, stft at rank_zero
+
     if rank == 0:
         pth_dir = os.path.join(hp.log.pth_dir, args.name)
         log_dir = os.path.join(hp.log.log_dir, args.name)
@@ -340,7 +338,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         )
         logger = logging.getLogger()
         writer = MyWriter(hp, log_dir)
-
+        valloader = create_dataloader_eval(hp)
     
 
 
@@ -349,7 +347,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
     for epoch in range(init_epoch, hp.train.epochs):
 
         #trainloader.batch_sampler.set_epoch(epoch)
-
+        if rank == 0 and epoch % hp.log.eval_interval == 0:
+            validate(hp, args, generator_state, discriminator_state, valloader, writer, step)
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:

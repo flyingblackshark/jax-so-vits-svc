@@ -50,20 +50,20 @@ class TacotronSTFT():
         mel = librosa_mel_fn(
             sr=sampling_rate, n_fft=filter_length, n_mels=n_mel_channels, fmin=mel_fmin, fmax=mel_fmax)
         self.mel_basis = mel
-    # def linear_spectrogram(self, y):
-    #     #assert (torch.min(y.data) >= -1)
-    #     #assert (torch.max(y.data) <= 1)
+    def linear_spectrogram(self, y):
+        #assert (torch.min(y.data) >= -1)
+        #assert (torch.max(y.data) <= 1)
 
-    #     y = jnp.pad(jnp.expand_dims(y,1),
-    #                                 (int((self.filter_length - self.hop_length) / 2), int((self.filter_length - self.hop_length) / 2)),
-    #                                 mode='reflect')
-    #     y = y.squeeze(1)
+        y = jnp.pad(y,[(0,0),(0,0),(int((self.filter_length - self.hop_length) / 2), int((self.filter_length - self.hop_length) / 2))],
+                                    mode='reflect')
 
-    #     spec = jax.scipy.signal.stft(y, nfft=self.filter_length, noverlap=self.hop_length, nperseg=self.win_length)
-    #     spec = jnp.sqrt(jnp.real(spec[2])**2+jnp.imag(spec[2])**2)
-    #     #spec = torch.norm(spec, p=2, dim=-1)
 
-    #     return spec
+        spec = jax.scipy.signal.stft(y, nfft=self.filter_length, noverlap=self.hop_length, nperseg=self.win_length)
+       #spec = jnp.sqrt(jnp.real(spec[2])**2+jnp.imag(spec[2])**2)
+        spec = jnp.sqrt((jnp.square(jnp.real(spec[2]))+jnp.square(jnp.imag(spec[2]))) + (1e-9))
+        #spec = torch.norm(spec, p=2, dim=-1)
+
+        return spec
 
     def mel_spectrogram(self, y):
         """Computes mel-spectrograms from a batch of waves
