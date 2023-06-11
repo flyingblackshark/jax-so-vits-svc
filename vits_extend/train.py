@@ -108,7 +108,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
           
             #Multi-Resolution STFT Loss
             
-            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
+            sc_loss, mag_loss = jax.lax.stop_gradient(stft_criterion(fake_audio.squeeze(1), audio.squeeze(1)))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss
