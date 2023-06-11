@@ -31,7 +31,7 @@ def stft(x, fft_size, hop_size, win_length):
     imag = jnp.imag(x_stft)#x_stft[..., 1]
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.sqrt(jnp.clip(a=(jnp.square(real) + jnp.square(imag)),a_min=1e-7)).transpose(0,2, 1)
+    return jnp.sqrt(jnp.clip(a=(jnp.square(real) + jnp.square(imag)),a_min=1e-7))#.transpose(0,2, 1)
 
 
 class SpectralConvergengeLoss():
@@ -50,6 +50,7 @@ class SpectralConvergengeLoss():
             Tensor: Spectral convergence loss value.
         """
         return jnp.sqrt(jnp.sum(jnp.square(y_mag - x_mag))) / jnp.sqrt(jnp.sum(jnp.square(y_mag)))
+        #return jnp.linalg.norm(y_mag - x_mag,ord="fro")/jnp.linalg.norm(y_mag,ord="fro")
 
 
 class LogSTFTMagnitudeLoss():
@@ -67,6 +68,7 @@ class LogSTFTMagnitudeLoss():
         Returns:
             Tensor: Log STFT magnitude loss value.
         """
+        #return optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag))
         return jnp.mean(optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag)))
 
 
@@ -113,7 +115,7 @@ class MultiResolutionSTFTLoss():
         #super(MultiResolutionSTFTLoss, self).__init__()
         self.stft_losses = []
         for fs, ss, wl in resolutions:
-            self.stft_losses += [STFTLoss(fs, ss, wl)]
+            self.stft_losses.append(STFTLoss(fs, ss, wl))
 
     def __call__(self, x, y):
         """Calculate forward propagation.
