@@ -14,6 +14,7 @@ import flax
 import jax
 import optax
 import numpy as np
+import orbax
 from flax import linen as nn
 from vits_extend.dataloader import create_dataloader_train
 from vits_extend.dataloader import create_dataloader_eval
@@ -27,7 +28,7 @@ from vits import commons
 from vits.losses import kl_loss
 #from vits.commons import clip_grad_value_
 import jax.numpy as jnp
-
+import orbax.checkpoint
 from functools import partial
 from typing import Any, Tuple
 from flax.training import train_state
@@ -211,7 +212,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 spec_real = spec_real[0]
                 #fake_audio = np.asarray(fake_audio)
                 #audio = np.asarray(audio)
-                res =  (audio, fake_audio, spec_fake, spec_real, idx, step)
+                res =  (audio, fake_audio, spec_fake, spec_real, idx)
                 # writer.log_fig_audio(
                 #     audio, fake_audio, spec_fake, spec_real, idx, step)
 
@@ -252,19 +253,52 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer = MyWriter(hp, log_dir)
         valloader = create_dataloader_eval(hp)
     
-  
-
+    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=3, keep_period=2)
+    mngr = orbax.checkpoint.CheckpointManager(
+            'chkpt/sovits5.0/', {'model_g': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler()),
+                                         'model_d': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())},
+            options=options)
+    # if mngr.latest_step() is not None:  # existing checkpoint present
+    #     # Use convenience function to construct args.
+    #     shardings = jax.tree_map(lambda x: x.sharding, generator_state)
+    #     restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args(
+    #                         train_state, shardings)
+    #     # Directly construct args.
+    #     restore_args = jax.tree_map(
+    #         lambda x: orbax.checkpoint.ArrayRestoreArgs(
+    #             # Restore as object. Could also be np.ndarray, int, or others.
+    #             restore_type=jax.Array,
+    #             # Cast the restored array to a specific dtype.
+    #             dtype=np.float32,
+    #             mesh=x.sharding.mesh,
+    #             mesh_axes=x.sharding.spec,
+    #             # Padding or truncation may occur. Ensure that the shape matches the
+    #             # saved shape!
+    #             global_shape=x.shape,
+    #         ),
+    #         train_state)
+    #     # Note the use of plural 'items' and 'restore_kwargs'. This is because we may
+    #     # be managing multiple items, as shown in the previous section. It is also
+    #     # valid to just have one item, as shown here.
+    #     restored = mngr.restore(mngr.latest_step(), 
+    #                     items=train_state, restore_kwargs=restore_args)
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
 
     for epoch in range(init_epoch, hp.train.epochs):
 
         if rank == 0 and epoch % hp.log.eval_interval == 0:
             (audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val),val_loss = validate(generator_state)
-            audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,step_val,val_loss = \
-            jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],step_val[0],val_loss[0]])
-            writer.log_fig_audio(audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val)
+            audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,val_loss = \
+            jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],val_loss[0]])
+            writer.log_fig_audio(audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step)
             writer.log_validation(val_loss, step)
-
+        if rank == 0 and epoch % hp.log.save_interval == 0:
+            model_g_save_args = jax.tree_map(lambda _: orbax.checkpoint.SaveArgs(), generator_state)
+            model_d_save_args = jax.tree_map(lambda _: orbax.checkpoint.SaveArgs(), discriminator_state)
+            mngr.save(step, items={
+                'model_g': generator_state,
+                'model_d': discriminator_state
+            },save_kwargs={'model_g': {'save_args': model_g_save_args},'model_d': {'save_args': model_d_save_args}})
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:

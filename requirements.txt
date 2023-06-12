@@ -16,3 +16,4 @@ torch
 jax
 flax
 optax
+orbax-checkpoint
