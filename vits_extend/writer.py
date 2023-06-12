@@ -19,7 +19,7 @@ class MyWriter(SummaryWriter):
         self.add_scalar('train/kl_f_loss', k_loss, step)
         self.add_scalar('train/kl_r_loss', r_loss, step)
 
-    def log_validation(self, mel_loss, generator, discriminator, step):
+    def log_validation(self, mel_loss, step):
         self.add_scalar('validation/mel_loss', mel_loss, step)
 
     def log_fig_audio(self, real, fake, spec_fake, spec_real, idx, step):

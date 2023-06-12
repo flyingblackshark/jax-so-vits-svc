@@ -242,7 +242,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         mel_loss = mel_loss / len(valloader.dataset)
 
-        writer.log_validation(mel_loss, generator, discriminator, step)
+        writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     key_generator, key_discriminator, key = jax.random.split(key, 3)
