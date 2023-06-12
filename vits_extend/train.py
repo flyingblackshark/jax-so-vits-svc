@@ -82,6 +82,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         
         return state
     #@partial(jax.pmap, axis_name='num_devices')
+      
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
@@ -89,14 +90,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
       
 
         def loss_fn(params):
-            stft = TacotronSTFT(filter_length=hp.data.filter_length,
-                    hop_length=hp.data.hop_length,
-                    win_length=hp.data.win_length,
-                    n_mel_channels=hp.data.mel_channels,
-                    sampling_rate=hp.data.sampling_rate,
-                    mel_fmin=hp.data.mel_fmin,
-                    mel_fmax=hp.data.mel_fmax)
-            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+          
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params},#,'batch_stats': generator_state.batch_stats},     
                 ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
@@ -201,13 +195,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
             segment_size=hp.data.segment_size // hp.data.hop_length,
             hp=hp,train=False)
         
-        stft = TacotronSTFT(filter_length=hp.data.filter_length,
-                        hop_length=hp.data.hop_length,
-                        win_length=hp.data.win_length,
-                        n_mel_channels=hp.data.mel_channels,
-                        sampling_rate=hp.data.sampling_rate,
-                        mel_fmin=hp.data.mel_fmin,
-                        mel_fmax=hp.data.mel_fmax)
+        # stft = TacotronSTFT(filter_length=hp.data.filter_length,
+        #                 hop_length=hp.data.hop_length,
+        #                 win_length=hp.data.win_length,
+        #                 n_mel_channels=hp.data.mel_channels,
+        #                 sampling_rate=hp.data.sampling_rate,
+        #                 mel_fmin=hp.data.mel_fmin,
+        #                 mel_fmax=hp.data.mel_fmax)
         loader = tqdm.tqdm(valloader, desc='Validation loop')
         mel_loss = 0.0
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
@@ -280,7 +274,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer = MyWriter(hp, log_dir)
         valloader = create_dataloader_eval(hp)
     
-
+    stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                    hop_length=hp.data.hop_length,
+                    win_length=hp.data.win_length,
+                    n_mel_channels=hp.data.mel_channels,
+                    sampling_rate=hp.data.sampling_rate,
+                    mel_fmin=hp.data.mel_fmin,
+                    mel_fmax=hp.data.mel_fmax)
+    stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
 
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
 
@@ -296,44 +297,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
         #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
 
-            # ppg = shard(ppg)
-            # ppg_l = shard(ppg_l)
-            # pit = shard(pit)
-            # spk = shard(spk)
-            # spec = shard(spec)
-            # spec_l = shard(spec_l)
-            # audio = shard(audio)
-            # audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
-            # generator_state, generator_loss,fake_audio_g,audio_g= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
-            # fake_audio_g = shard(fake_audio_g)
-            # audio_g = shard(audio_g)
-            # #print("Working!2")
-            # discriminator_state, discriminator_loss = discriminator_step(generator_state, discriminator_state,audio_g=audio_g,fake_audio_g=fake_audio_g,key=key_discriminator)
-            #print("Working!3")
-
-
-            # discriminator
-
-
 
             step += 1
-            # logging
-            # loss_g = np.mean(np.asarray(loss_g))
-            # loss_d = np.mean(np.asarray(loss_d))
-            # loss_s = np.mean(np.asarray(loss_s))
-            # loss_m = np.mean(np.asarray(loss_m))
-            # loss_k = np.mean(np.asarray(loss_k))
-            # loss_r = np.mean(np.asarray(loss_r))
+
             loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = \
             jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
             if rank == 0 and step % hp.log.info_interval == 0:
-                #metrics = jax.device_get([loss_g[0], loss_d[1]])
-                # print("g %.04f d %.04f  | step %d" % (
-                #      loss_g,  loss_d,  step))
-                #print(metrics)
-                # print(np.mean(loss_d))
-                # print(np.mean(loss_g))
+
                 writer.log_training(
                     loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
                 logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f  | step %d" % (
