@@ -223,8 +223,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             mel_loss_val = np.mean(mel_loss_val)
             mel_loss += mel_loss_val
         mel_loss = mel_loss / len(valloader.dataset)
+        mel_loss = np.asarray(mel_loss)
         (audio,fake_audio,spec_fake,spec_real,idx) = res
-        writer.log_fig_audio(audio, fake_audio, spec_fake, spec_real, idx, step)
+        writer.log_fig_audio(audio[0][0], fake_audio, spec_fake, spec_real, idx, step)
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)

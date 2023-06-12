@@ -223,15 +223,15 @@ class WN(nn.Module):
     #         torch.nn.utils.remove_weight_norm(l)
 
 
-class Log(nn.Module):
-    def forward(self, x, x_mask, reverse=False, **kwargs):
-        if not reverse:
-            y = jnp.log(jnp.clip(a=x,a_min=1e-5)) * x_mask
-            logdet = jnp.sum(-y, [1, 2])
-            return y, logdet
-        else:
-            x = jnp.exp(x) * x_mask
-            return x
+# class Log(nn.Module):
+#     def forward(self, x, x_mask, reverse=False, **kwargs):
+#         if not reverse:
+#             y = jnp.log(jnp.clip(a=x,a_min=1e-5)) * x_mask
+#             logdet = jnp.sum(-y, [1, 2])
+#             return y, logdet
+#         else:
+#             x = jnp.exp(x) * x_mask
+#             return x
 
 
 class Flip(nn.Module):
