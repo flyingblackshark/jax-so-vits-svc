@@ -234,15 +234,27 @@ class SynthesizerTrn(nn.Module):
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)#, spk_preds
 
     def infer(self, ppg, pit, spk, ppg_l):
+        
+        # jax.debug.print("{}",ppg.shape)
+        # jax.debug.print("{}",pit.shape)
+        # jax.debug.print("{}",ppg_l)
+        ppg=ppg[:,:100,:]
+        pit=pit[:,:100]
+        for i in range(len(ppg_l)):
+            ppg_l[i]=100
+        
+        #ppg_mask = ppg_mask[:,:100]
+        #pit = pit[:,:100]
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit))
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
-        ppg_mask = ppg_mask[:,:100]
-        pit = pit[:,:100]
+        # jax.debug.print("{}",z.shape)
+        
         # jax.debug.print("{}",spk.shape)
         # jax.debug.print("{}",(z * ppg_mask).shape)
         # jax.debug.print("{}",pit.shape)
         o = self.dec(spk, z * ppg_mask, f0=pit)
+        #jax.debug.print("{}",o.shape)
         return o
 
 
