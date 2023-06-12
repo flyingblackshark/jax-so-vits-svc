@@ -238,10 +238,10 @@ class SynthesizerTrn(nn.Module):
         # jax.debug.print("{}",ppg.shape)
         # jax.debug.print("{}",pit.shape)
         # jax.debug.print("{}",ppg_l)
-        ppg=ppg[:,:100,:]
-        pit=pit[:,:100]
-        for i in range(len(ppg_l)):
-            ppg_l[i]=100
+        #ppg=ppg[:,:100,:]
+        #pit=pit[:,:100]
+        # for i in range(len(ppg_l)):
+        #     ppg_l[i]=100
         
         #ppg_mask = ppg_mask[:,:100]
         #pit = pit[:,:100]

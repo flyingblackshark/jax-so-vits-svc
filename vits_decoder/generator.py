@@ -140,7 +140,7 @@ class Generator(nn.Module):
         #f0 = self.f0_upsamp(f0).transpose(1, 2)
         
         har_source = self.m_source(f0)
-        har_source = har_source.transpose(0,2,1)
+        #har_source = har_source.transpose(0,2,1)
         x = x.transpose(0,2,1)
         x = self.conv_pre(x)
         #x = self.norm1(x)
