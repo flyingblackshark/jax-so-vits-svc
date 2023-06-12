@@ -193,7 +193,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         grads=grads, batch_stats=mutables['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     @jax.pmap
-    def validate(generator, discriminator, valloader, writer, step):
+    def validate(generator):
         # generator.eval()
         # discriminator.eval()
         # torch.backends.cudnn.benchmark = False
@@ -284,7 +284,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         #trainloader.batch_sampler.set_epoch(epoch)
         if rank == 0 and epoch % hp.log.eval_interval == 0:
-            validate(generator_state, discriminator_state, valloader, writer, step)
+            validate(generator_state)
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
