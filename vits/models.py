@@ -67,6 +67,7 @@ class ResidualCouplingBlock(nn.Module):
     n_layers:int
     n_flows:int=4
     gin_channels:int=0
+    train:bool=True
     def setup(
         self
     ):
@@ -82,6 +83,7 @@ class ResidualCouplingBlock(nn.Module):
                     self.n_layers,
                     gin_channels=self.gin_channels,
                     mean_only=True,
+                    train=self.train
                 )
             )
             flows.append(modules.Flip())
@@ -206,7 +208,8 @@ class SynthesizerTrn(nn.Module):
             5,
             1,
             4,
-            gin_channels=self.hp.vits.spk_dim
+            gin_channels=self.hp.vits.spk_dim,
+            train=self.train
         )
         self.dec = Generator(hp=self.hp,train=self.train)
         #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))

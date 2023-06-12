@@ -134,6 +134,7 @@ class WN(nn.Module):
     n_layers:int
     #gin_channels:int=0
     p_dropout:float=0
+    train:bool=True
     def setup(self):
         #super(WN, self).__init__()
         assert self.kernel_size % 2 == 1
@@ -167,7 +168,7 @@ class WN(nn.Module):
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
-            in_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
+            in_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
             # last one is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_channels
@@ -177,7 +178,7 @@ class WN(nn.Module):
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.01))
             #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             res_skip_layers.append(res_skip_layer)
-            res_skip_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
+            res_skip_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
         self.in_layer_norms = in_layer_norms
@@ -267,6 +268,7 @@ class ResidualCouplingLayer(nn.Module):
     p_dropout:float=0,
     gin_channels:int=0,
     mean_only:bool=False,
+    train:bool=True
     def setup(
         self
     ):
@@ -288,6 +290,7 @@ class ResidualCouplingLayer(nn.Module):
             self.dilation_rate,
             self.n_layers,
             p_dropout=self.p_dropout,
+            train=self.train
         )
         self.post = nn.Conv(
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=normal_init(0.01))
