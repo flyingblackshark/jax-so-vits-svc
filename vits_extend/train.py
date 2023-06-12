@@ -211,11 +211,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loader = tqdm.tqdm(valloader, desc='Validation loop')
         mel_loss = 0.0
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
-            ppg = shard(ppg)
-            pit = shard(pit)
-            spk = shard(spk)
-            ppg_l = shard(ppg_l)
-            audio = shard(audio)
+            # ppg = shard(ppg)
+            # pit = shard(pit)
+            # spk = shard(spk)
+            # ppg_l = shard(ppg_l)
+            # audio = shard(audio)
 
             # if hasattr(generator, 'module'):
             #     fake_audio = generator.module.infer(ppg, pit, spk, ppg_l)[
