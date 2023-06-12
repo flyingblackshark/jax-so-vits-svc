@@ -41,7 +41,7 @@ PRNGKey = jnp.ndarray
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
 
-    #@partial(jax.pmap, static_broadcasted_argnums=(1))
+    @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
@@ -61,7 +61,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             params=variables['params'])#,batch_stats=variables['batch_stats'])
         
         return state
-    #@partial(jax.pmap, static_broadcasted_argnums=(1))
+    @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
@@ -74,7 +74,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             params=variables['params'])#, batch_stats=variables['batch_stats'])
         
         return state
-    #@partial(jax.pmap, axis_name='num_devices')
+    @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
@@ -178,23 +178,20 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_discriminator_state = discriminator_state.apply_gradients(
         grads=grads)#, batch_stats=mutables['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
-    #@partial(jax.pmap, axis_name='num_devices')
-    def sample_from_model(generator,ppg,pit,spk,ppg_l):
-        model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
-            segment_size=hp.data.segment_size // hp.data.hop_length,
-            hp=hp,train=False)
-        fake_audio = model.apply({'params': generator.params}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
-        return fake_audio
+    @partial(jax.pmap, axis_name='num_devices')
     def validate(generator):
         loader = tqdm.tqdm(valloader, desc='Validation loop')
         mel_loss = 0.0
+        
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
-            # ppg = shard(ppg)
-            # pit = shard(pit)
-            # spk = shard(spk)
-            # ppg_l = shard(ppg_l)
-            fake_audio=sample_from_model(generator,ppg,pit,spk,ppg_l)
-           # audio = audio[:,:,:32000]
+            # ppg_val = shard(ppg)
+            # pit_val = shard(pit)
+            # spk_val = shard(spk)
+            # ppg_l_val = shard(ppg_l)
+            model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+            segment_size=hp.data.segment_size // hp.data.hop_length,
+            hp=hp,train=False)
+            fake_audio = model.apply({'params': generator.params}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
 
@@ -208,19 +205,21 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 fake_audio = fake_audio[0][0]
                 spec_fake = spec_fake[0]
                 spec_real = spec_real[0]
-                fake_audio = np.asarray(fake_audio)
-                audio = np.asarray(audio)
-                writer.log_fig_audio(
-                    audio, fake_audio, spec_fake, spec_real, idx, step)
+                #fake_audio = np.asarray(fake_audio)
+                #audio = np.asarray(audio)
+                res =  (audio, fake_audio, spec_fake, spec_real, idx, step)
+                # writer.log_fig_audio(
+                #     audio, fake_audio, spec_fake, spec_real, idx, step)
 
         mel_loss = mel_loss / len(valloader.dataset)
 
-        writer.log_validation(mel_loss, step)
+        #writer.log_validation(mel_loss, step)
+        return res, mel_loss
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     key_generator, key_discriminator, key = jax.random.split(key, 3)
-    # key_generator = shard_prng_key(key_generator)
-    # key_discriminator = shard_prng_key(key_discriminator)
+    key_generator = shard_prng_key(key_generator)
+    key_discriminator = shard_prng_key(key_discriminator)
 
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
     
@@ -263,7 +262,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
     for epoch in range(init_epoch, hp.train.epochs):
 
         if rank == 0 and epoch % hp.log.eval_interval == 0:
-            validate(generator_state)
+            (audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val),val_loss = validate(generator_state)
+            audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,step_val,val_loss = \
+            jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],step_val[0],val_loss[0]])
+            writer.log_fig_audio(
+                audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val)
+            writer.log_validation(val_loss, step)
+
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
@@ -271,14 +276,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
 
-            # ppg = shard(ppg)
-            # ppg_l = shard(ppg_l)
-            # pit = shard(pit)
-            # spk = shard(spk)
-            # spec = shard(spec)
-            # spec_l = shard(spec_l)
-            # audio = shard(audio)
-            # audio_l = shard(audio_l)
+            ppg = shard(ppg)
+            ppg_l = shard(ppg_l)
+            pit = shard(pit)
+            spk = shard(spk)
+            spec = shard(spec)
+            spec_l = shard(spec_l)
+            audio = shard(audio)
+            audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
 
 
