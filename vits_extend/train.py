@@ -189,29 +189,36 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
         mel_loss = 0.0
-        for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):             
-            model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
-            segment_size=hp.data.segment_size // hp.data.hop_length,
-            hp=hp,train=False)
-            fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
-            mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
-            mel_real = stft.mel_spectrogram(audio.squeeze(1))
-            mel_loss += jnp.mean(optax.l2_loss(mel_fake, mel_real))
+        for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader): 
+            ppg=shard(ppg)
+            ppg_l=shard(ppg_l)
+            pit=shard(pit)
+            spk=shard(spk)
+            @partial(jax.pmap, axis_name='num_devices')         
+            def do_validate(ppg_val,pit_val,spk_val,ppg_l_val):         
+                model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+                segment_size=hp.data.segment_size // hp.data.hop_length,
+                hp=hp,train=False)
+                fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
+                mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
+                mel_real = stft.mel_spectrogram(audio.squeeze(1))
+                mel_loss_val = jnp.mean(optax.l2_loss(mel_fake, mel_real))
 
-            if idx == 0:
+                #f idx == 0:
                 spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
                 spec_real = stft.linear_spectrogram(audio.squeeze(1))
                 audio = audio[0][0]
                 fake_audio = fake_audio[0][0]
                 spec_fake = spec_fake[0]
                 spec_real = spec_real[0]
-                audio = np.asarray(audio)
-                fake_audio = np.asarray(fake_audio)
-                spec_fake = np.asarray(spec_fake)
-                spec_real = np.asarray(spec_real)
-                writer.log_fig_audio(audio, fake_audio, spec_fake, spec_real, idx, step)
-        mel_loss = np.asarray(mel_loss)
+                return mel_loss_val,audio, fake_audio, spec_fake, spec_real
+            mel_loss_val,audio,fake_audio,spec_fake,spec_real=do_validate(ppg,pit,spk,ppg_l)
+            if idx == 0:
+                res = (audio,fake_audio,spec_fake,spec_real,idx)
+        mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
         mel_loss = mel_loss / len(valloader.dataset)
+        (audio,fake_audio,spec_fake,spec_real,idx) = res
+        writer.log_fig_audio(audio, fake_audio, spec_fake, spec_real, idx, step)
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
@@ -246,11 +253,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer = MyWriter(hp, log_dir)
         valloader = create_dataloader_eval(hp)
     
-    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=3, keep_period=2)
-    mngr = orbax.checkpoint.CheckpointManager(
-            'chkpt/sovits5.0/', {'model_g': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler()),
-                                         'model_d': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())},
-            options=options)
+    # options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=3, keep_period=2)
+    # mngr = orbax.checkpoint.CheckpointManager(
+    #         'chkpt/sovits5.0/', {'model_g': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler()),
+    #                                      'model_d': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())},
+    #         options=options)
     # if mngr.latest_step() is not None:  # existing checkpoint present
     #     # Use convenience function to construct args.
     #     shardings = jax.tree_map(lambda x: x.sharding, generator_state)
