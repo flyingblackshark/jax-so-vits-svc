@@ -91,7 +91,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         def loss_fn(params):
           
-            (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
+            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': params},#,'batch_stats': generator_state.batch_stats},     
                 ppg, pit, spec, spk, ppg_l, spec_l)#, mutable=['batch_stats'])
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
@@ -137,10 +137,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Loss
             loss_g = mel_loss +score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
-            return loss_g, (mutables,fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
+            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss,(mutables,fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads = grad_fn(generator_state.params)
+        (loss,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -159,10 +159,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             #     {'params': generator_state.params, 'batch_stats': generator_state.batch_stats},
             #     ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
             # audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-            disc_fake,mutables  = discriminator_state.apply_fn(
+            disc_fake  = discriminator_state.apply_fn(
                 {'params': params},#,'batch_stats': discriminator_state.batch_stats},    
              fake_audio_g)#, mutable=['batch_stats'])
-            disc_real,mutables  = discriminator_state.apply_fn(
+            disc_real  = discriminator_state.apply_fn(
                 {'params': params},#,'batch_stats':  mutables['batch_stats']},
                 audio_g)#, mutable=['batch_stats'])
             loss_d = 0.0
@@ -171,12 +171,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 loss_d += jnp.mean((score_fake)**2)
             loss_d = loss_d / len(disc_fake)
           
-            return loss_d,mutables 
+            return loss_d 
         
         # Generate data with the Generator, critique it with the Discriminator.
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        #optax.clip_by_global_norm(None)
-        (loss,mutables), grads = grad_fn(discriminator_state.params)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
+
+        loss, grads = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
         grads = jax.lax.pmean(grads, axis_name='num_devices')
@@ -188,20 +188,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     #@jax.pmap
     def validate(generator):
-        # generator.eval()
-        # discriminator.eval()
-        # torch.backends.cudnn.benchmark = False
+
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
             segment_size=hp.data.segment_size // hp.data.hop_length,
             hp=hp,train=False)
         
-        # stft = TacotronSTFT(filter_length=hp.data.filter_length,
-        #                 hop_length=hp.data.hop_length,
-        #                 win_length=hp.data.win_length,
-        #                 n_mel_channels=hp.data.mel_channels,
-        #                 sampling_rate=hp.data.sampling_rate,
-        #                 mel_fmin=hp.data.mel_fmin,
-        #                 mel_fmax=hp.data.mel_fmax)
+
         loader = tqdm.tqdm(valloader, desc='Validation loop')
         mel_loss = 0.0
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
@@ -211,15 +203,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # ppg_l = shard(ppg_l)
             # audio = shard(audio)
 
-            # if hasattr(generator, 'module'):
-            #     fake_audio = generator.module.infer(ppg, pit, spk, ppg_l)[
-            #         :, :, :audio.size(2)]
-            # else:
             audio = audio[:,:,:32000]
             fake_audio = model.apply({'params': generator.params}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
-            #fake_audio = generator.infer(ppg, pit, spk, ppg_l)[:, :, :audio.size(2)]
-            #jax.debug.print("{}",fake_audio.shape)
-            #jax.debug.print("{}",audio.shape)
+
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
 
@@ -287,17 +273,26 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     for epoch in range(init_epoch, hp.train.epochs):
 
-        #trainloader.batch_sampler.set_epoch(epoch)
         if rank == 0 and epoch % hp.log.eval_interval == 0:
             validate(generator_state)
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
             loader = trainloader
-        #data_gen = iter(loader)
+
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
 
+            # ppg = shard(ppg)
+            # ppg_l = shard(ppg_l)
+            # pit = shard(pit)
+            # spk = shard(spk)
+            # spec = shard(spec)
+            # spec_l = shard(spec_l)
+            # audio = shard(audio)
+            # audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
+
+
 
             step += 1
 
