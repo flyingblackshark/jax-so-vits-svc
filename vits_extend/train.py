@@ -195,7 +195,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
             segment_size=hp.data.segment_size // hp.data.hop_length,
             hp=hp,train=False)
-            fake_audio = model.apply({'params': generator.params}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
+            fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg, pit, spk, ppg_l,method=SynthesizerTrn.infer, mutable=False)
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
 
