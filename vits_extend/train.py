@@ -41,7 +41,7 @@ class TrainState(train_state.TrainState):
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
     #torch.multiprocessing.set_start_method('spawn')
-    @partial(jax.pmap, static_broadcasted_argnums=(1))
+    #@partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
@@ -65,7 +65,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             params=variables['params'],batch_stats=variables['batch_stats'])
         
         return state
-    @partial(jax.pmap, static_broadcasted_argnums=(1))
+    #@partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
@@ -81,7 +81,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             params=variables['params'], batch_stats=variables['batch_stats'])
         
         return state
-    @partial(jax.pmap, axis_name='num_devices')
+    #@partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
                        ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
@@ -192,7 +192,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_discriminator_state = discriminator_state.apply_gradients(
         grads=grads, batch_stats=mutables['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
-    @jax.pmap
+    #@jax.pmap
     def validate(generator):
         # generator.eval()
         # discriminator.eval()
@@ -227,7 +227,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
 
-            mel_loss += jnp.mean(optax.l2_loss(mel_fake, mel_real)) 
+            mel_loss += float(jnp.mean(optax.l2_loss(mel_fake, mel_real)))
 
             if idx < hp.log.num_audio:
                 spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
@@ -237,6 +237,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 fake_audio = fake_audio[0][0]
                 spec_fake = spec_fake[0]
                 spec_real = spec_real[0]
+                fake_audio = np.asarray(fake_audio)
+                fake_audio = np.asarray(audio)
                 writer.log_fig_audio(
                     audio, fake_audio, spec_fake, spec_real, idx, step)
 
@@ -246,8 +248,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     key_generator, key_discriminator, key = jax.random.split(key, 3)
-    key_generator = shard_prng_key(key_generator)
-    key_discriminator = shard_prng_key(key_discriminator)
+    # key_generator = shard_prng_key(key_generator)
+    # key_discriminator = shard_prng_key(key_discriminator)
 
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
     
@@ -292,14 +294,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
         #data_gen = iter(loader)
         for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
 
-            ppg = shard(ppg)
-            ppg_l = shard(ppg_l)
-            pit = shard(pit)
-            spk = shard(spk)
-            spec = shard(spec)
-            spec_l = shard(spec_l)
-            audio = shard(audio)
-            audio_l = shard(audio_l)
+            # ppg = shard(ppg)
+            # ppg_l = shard(ppg_l)
+            # pit = shard(pit)
+            # spk = shard(spk)
+            # spec = shard(spec)
+            # spec_l = shard(spec_l)
+            # audio = shard(audio)
+            # audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
             # generator_state, generator_loss,fake_audio_g,audio_g= generator_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,key=key_generator)
             # fake_audio_g = shard(fake_audio_g)

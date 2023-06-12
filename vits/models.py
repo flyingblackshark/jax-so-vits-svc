@@ -221,6 +221,9 @@ class SynthesizerTrn(nn.Module):
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
         z_slice, pit_slice, ids_slice = jax.lax.stop_gradient(commons.rand_slice_segments_with_pitch(
             z_q, pit, spec_l, self.segment_size))
+        # jax.debug.print("{}",spk.shape)
+        # jax.debug.print("{}",z_slice.shape)
+        # jax.debug.print("{}",pit_slice.shape)
         audio = self.dec(spk, z_slice, pit_slice)
 
         # SNAC to flow
@@ -234,6 +237,11 @@ class SynthesizerTrn(nn.Module):
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit))
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
+        ppg_mask = ppg_mask[:,:100]
+        pit = pit[:,:100]
+        # jax.debug.print("{}",spk.shape)
+        # jax.debug.print("{}",(z * ppg_mask).shape)
+        # jax.debug.print("{}",pit.shape)
         o = self.dec(spk, z * ppg_mask, f0=pit)
         return o
 
