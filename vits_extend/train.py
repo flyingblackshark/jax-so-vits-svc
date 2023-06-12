@@ -53,8 +53,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
         fake_pit = jnp.ones((hp.train.batch_size,400))
         fake_spec = jnp.ones((hp.train.batch_size,513,400))
         fake_spk = jnp.ones((hp.train.batch_size,256))
-        fake_spec_l = jnp.asarray(np.asarray(400))
-        fake_ppg_l = jnp.asarray(np.asarray(400))
+        fake_spec_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
+        fake_ppg_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
 
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l)
 
@@ -177,45 +177,51 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_discriminator_state = discriminator_state.apply_gradients(
         grads=grads, batch_stats=mutables['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
-   
+    @partial(jax.pmap, axis_name='num_devices')         
+    def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
+        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                hop_length=hp.data.hop_length,
+                win_length=hp.data.win_length,
+                n_mel_channels=hp.data.mel_channels,
+                sampling_rate=hp.data.sampling_rate,
+                mel_fmin=hp.data.mel_fmin,
+                mel_fmax=hp.data.mel_fmax)      
+        model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+        segment_size=hp.data.segment_size // hp.data.hop_length,
+        hp=hp,train=False)
+        fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
+        mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
+        mel_real = stft.mel_spectrogram(audio.squeeze(1))
+        mel_loss_val = jnp.mean(optax.l2_loss(mel_fake, mel_real))
+
+        #f idx == 0:
+        spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
+        spec_real = stft.linear_spectrogram(audio.squeeze(1))
+        audio = audio[0][0]
+        fake_audio = fake_audio[0][0]
+        spec_fake = spec_fake[0]
+        spec_real = spec_real[0]
+        return mel_loss_val, fake_audio, spec_fake, spec_real
     def validate(generator):
         loader = tqdm.tqdm(valloader, desc='Validation loop')
        
-        stft = TacotronSTFT(filter_length=hp.data.filter_length,
-                    hop_length=hp.data.hop_length,
-                    win_length=hp.data.win_length,
-                    n_mel_channels=hp.data.mel_channels,
-                    sampling_rate=hp.data.sampling_rate,
-                    mel_fmin=hp.data.mel_fmin,
-                    mel_fmax=hp.data.mel_fmax)
+     
         mel_loss = 0.0
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader): 
             ppg=shard(ppg)
             ppg_l=shard(ppg_l)
             pit=shard(pit)
             spk=shard(spk)
-            @partial(jax.pmap, axis_name='num_devices')         
-            def do_validate(ppg_val,pit_val,spk_val,ppg_l_val):         
-                model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
-                segment_size=hp.data.segment_size // hp.data.hop_length,
-                hp=hp,train=False)
-                fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
-                mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
-                mel_real = stft.mel_spectrogram(audio.squeeze(1))
-                mel_loss_val = jnp.mean(optax.l2_loss(mel_fake, mel_real))
-
-                #f idx == 0:
-                spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
-                spec_real = stft.linear_spectrogram(audio.squeeze(1))
-                audio = audio[0][0]
-                fake_audio = fake_audio[0][0]
-                spec_fake = spec_fake[0]
-                spec_real = spec_real[0]
-                return mel_loss_val,audio, fake_audio, spec_fake, spec_real
-            mel_loss_val,audio,fake_audio,spec_fake,spec_real=do_validate(ppg,pit,spk,ppg_l)
+            #tmp_audio=audio
+            val_audio=shard(audio)
+            mel_loss_val,fake_audio,spec_fake,spec_real=do_validate(generator,ppg,pit,spk,ppg_l,val_audio)
             if idx == 0:
+                fake_audio,spec_fake,spec_real = \
+            jax.device_get([ fake_audio[0],spec_fake[0],spec_real[0]])
                 res = (audio,fake_audio,spec_fake,spec_real,idx)
-        mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
+            #mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
+            mel_loss_val = np.mean(mel_loss_val)
+            mel_loss += mel_loss_val
         mel_loss = mel_loss / len(valloader.dataset)
         (audio,fake_audio,spec_fake,spec_real,idx) = res
         writer.log_fig_audio(audio, fake_audio, spec_fake, spec_real, idx, step)

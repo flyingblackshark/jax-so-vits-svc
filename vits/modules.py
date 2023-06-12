@@ -185,7 +185,7 @@ class WN(nn.Module):
         #self.res_skip_layer_norms = res_skip_layer_norms
 
     def __call__(self, x, x_mask, g=None, **kwargs):
-        x = x.transpose(0,2,1)
+        #x = x.transpose(0,2,1)
         output = jnp.zeros_like(x)
         n_channels_tensor = [self.hidden_channels]
 
@@ -307,8 +307,8 @@ class ResidualCouplingLayer(nn.Module):
         x0_norm = (x0 - speaker_m) * jnp.exp(-speaker_v) * x_mask
         h = self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1) * x_mask
         # don't use global condition
-        h = self.enc(h.transpose(0,2,1), x_mask).transpose(0,2,1)
-        stats = self.post(h).transpose(0,2,1)* x_mask
+        h = self.enc(h, x_mask)
+        stats = self.post(h.transpose(0,2,1)).transpose(0,2,1)* x_mask
         if not self.mean_only:
             m, logs = jnp.split(stats,2, 1)
         else:

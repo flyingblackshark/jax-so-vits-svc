@@ -134,8 +134,8 @@ class PosteriorEncoder(nn.Module):
         rng = random.PRNGKey(1234)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        x = self.enc(x.transpose(0,2,1), x_mask, g=g).transpose(0,2,1)
-        stats = self.proj(x).transpose(0,2,1) * x_mask
+        x = self.enc(x, x_mask, g=g)
+        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats, 2, axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
