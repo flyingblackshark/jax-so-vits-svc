@@ -262,8 +262,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             (audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val),val_loss = validate(generator_state)
             audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,step_val,val_loss = \
             jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],step_val[0],val_loss[0]])
-            writer.log_fig_audio(
-                audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val)
+            writer.log_fig_audio(audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val)
             writer.log_validation(val_loss, step)
 
         if rank == 0:
