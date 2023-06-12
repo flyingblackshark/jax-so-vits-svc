@@ -175,7 +175,7 @@ class SynthesizerTrn(nn.Module):
     ):
         #super().__init__()
         #self.segment_size = segment_size
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,kernel_init=normal_init(0.02))
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels,kernel_init=normal_init(0.01))
        
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
@@ -209,7 +209,7 @@ class SynthesizerTrn(nn.Module):
             gin_channels=self.hp.vits.spk_dim
         )
         self.dec = Generator(hp=self.hp,train=self.train)
-        #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l):
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation

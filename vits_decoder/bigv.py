@@ -38,7 +38,7 @@ class AMPBlock(nn.Module):
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms1=[nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
+        #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
         #self.convs1.apply(init_weights)
 
         self.convs2 = [
@@ -50,11 +50,11 @@ class AMPBlock(nn.Module):
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
         self.norms2=[nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.02)) for i in range(3)]
+        #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
         #self.convs2.apply(init_weights)
 
     def __call__(self, x):
-        for c1, c2,c3,c4 in zip(self.convs1, self.convs2,self.norm1,self.norm2):
+        for c1, c2,c3,c4 in zip(self.convs1, self.convs2,self.norms1,self.norms2):
             xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt)
             xt = c3(xt)

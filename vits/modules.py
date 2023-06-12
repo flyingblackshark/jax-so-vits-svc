@@ -153,8 +153,8 @@ class WN(nn.Module):
             features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=normal_init(0.01)
         )
             #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
-        #in_layer_norms = []
-        #res_skip_layer_norms = []
+        in_layer_norms = []
+        res_skip_layer_norms = []
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             #padding = int((self.kernel_size * dilation - dilation) / 2)
@@ -167,8 +167,7 @@ class WN(nn.Module):
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
-            #in_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
-            #in_layer_norms.append(nn.GroupNorm(scale_init=normal_init(0.02)))
+            in_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
             # last one is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_channels
@@ -178,12 +177,11 @@ class WN(nn.Module):
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.01))
             #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             res_skip_layers.append(res_skip_layer)
-            #res_skip_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
-            #res_skip_layer_norms.append(nn.GroupNorm(scale_init=normal_init(0.02)))
+            res_skip_layer_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
-        #self.in_layer_norms = in_layer_norms
-        #self.res_skip_layer_norms = res_skip_layer_norms
+        self.in_layer_norms = in_layer_norms
+        self.res_skip_layer_norms = res_skip_layer_norms
 
     def __call__(self, x, x_mask, g=None, **kwargs):
         x = x.transpose(0,2,1)
@@ -195,7 +193,7 @@ class WN(nn.Module):
 
         for i in range(self.n_layers):
             x_in = self.in_layers[i](x.transpose(0,2,1)).transpose(0,2,1)
-            #x_in = self.in_layer_norms[i](x_in.transpose(0,2,1)).transpose(0,2,1)
+            x_in = self.in_layer_norms[i](x_in.transpose(0,2,1)).transpose(0,2,1)
             if g is not None:
                 cond_offset = i * 2 * self.hidden_channels
                 g_l = g[:, cond_offset : cond_offset + 2 * self.hidden_channels,:]
@@ -206,7 +204,7 @@ class WN(nn.Module):
             acts = self.drop(acts)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
-            #res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)
+            res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels,:]
                 x = (x + res_acts) * x_mask
@@ -282,7 +280,7 @@ class ResidualCouplingLayer(nn.Module):
         self.half_channels = self.channels // 2
         # self.mean_only = mean_only
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.02))
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -292,11 +290,11 @@ class ResidualCouplingLayer(nn.Module):
             p_dropout=self.p_dropout,
         )
         self.post = nn.Conv(
-            features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=normal_init(0.02))
+            features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=normal_init(0.01))
         # self.post.weight.data.zero_()
         # self.post.bias.data.zero_()
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.02))
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.01))
 
     def __call__(self, x, x_mask, g=None, reverse=False):
         speaker = jnp.expand_dims(self.snac(g),-1)

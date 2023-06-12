@@ -30,13 +30,13 @@ import jax.numpy as jnp
 
 from functools import partial
 from typing import Any, Tuple
-from flax.training.train_state import TrainState
+from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
 import torch
 PRNGKey = jnp.ndarray
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: Any
+class TrainState(train_state.TrainState):
+    batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
@@ -82,7 +82,14 @@ def train(rank, args, chkpt_path, hp, hp_str):
       
 
         def loss_fn(params):
-          
+            stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                    hop_length=hp.data.hop_length,
+                    win_length=hp.data.win_length,
+                    n_mel_channels=hp.data.mel_channels,
+                    sampling_rate=hp.data.sampling_rate,
+                    mel_fmin=hp.data.mel_fmin,
+                    mel_fmax=hp.data.mel_fmax)
+            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params,'batch_stats': generator_state.batch_stats},     
                 ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
@@ -97,16 +104,16 @@ def train(rank, args, chkpt_path, hp, hp_str):
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss 
-            disc_fake = discriminator_state.apply_fn(
+            disc_fake,_ = discriminator_state.apply_fn(
             {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
-            fake_audio)#, mutable=['batch_stats'])
+            fake_audio, mutable=['batch_stats'])
             score_loss = 0.0
             for (_, score_fake) in disc_fake:
                 score_loss += jnp.mean((score_fake - 1.0)**2)
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
-            disc_real = discriminator_state.apply_fn(
+            disc_real,_ = discriminator_state.apply_fn(
             {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
             audio, mutable=['batch_stats'])
 
@@ -139,7 +146,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
 
         new_generator_state = generator_state.apply_gradients(
-            grads=grads)#, batch_stats=mutables['batch_stats'])
+            grads=grads, batch_stats=mutables['batch_stats'])
         
         def loss_fn(params):
             disc_fake,mutables  = discriminator_state.apply_fn(
@@ -173,7 +180,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def validate(generator):
         loader = tqdm.tqdm(valloader, desc='Validation loop')
         mel_loss = 0.0
-        
+        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                    hop_length=hp.data.hop_length,
+                    win_length=hp.data.win_length,
+                    n_mel_channels=hp.data.mel_channels,
+                    sampling_rate=hp.data.sampling_rate,
+                    mel_fmin=hp.data.mel_fmin,
+                    mel_fmax=hp.data.mel_fmax)
         for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader):
             # ppg_val = shard(ppg)
             # pit_val = shard(pit)
@@ -239,14 +252,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer = MyWriter(hp, log_dir)
         valloader = create_dataloader_eval(hp)
     
-    stft = TacotronSTFT(filter_length=hp.data.filter_length,
-                    hop_length=hp.data.hop_length,
-                    win_length=hp.data.win_length,
-                    n_mel_channels=hp.data.mel_channels,
-                    sampling_rate=hp.data.sampling_rate,
-                    mel_fmin=hp.data.mel_fmin,
-                    mel_fmax=hp.data.mel_fmax)
-    stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+  
 
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
 

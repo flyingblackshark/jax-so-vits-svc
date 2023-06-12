@@ -27,14 +27,14 @@ class DiscriminatorP(nn.Module):
             nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01)),
         ]
         # self.norms = [
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)),
+        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
         # ]
         self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.02))
+        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01))
     
 
     def __call__(self, x):

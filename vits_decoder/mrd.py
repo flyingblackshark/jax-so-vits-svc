@@ -13,16 +13,16 @@ class DiscriminatorR(nn.Module):
         self.LRELU_SLOPE = self.hp.mpd.lReLU_slope
 
         self.convs = [
-            nn.Conv(features=32, kernel_size=[3, 9], padding="same",kernel_init=normal_init(0.02)),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.02)),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.02)),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.02)),
-            nn.Conv(features=32, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02)),
+            nn.Conv(features=32, kernel_size=[3, 9], padding="same",kernel_init=normal_init(0.01)),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.01)),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.01)),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.01)),
+            nn.Conv(features=32, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.01)),
         ]
 
         self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02))
-        #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.01))
+        #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
     def __call__(self, x):
         fmap = []
        
@@ -35,7 +35,7 @@ class DiscriminatorR(nn.Module):
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)
-        #x = self.norm_post(x)
+
         x=x.transpose(0,1,3,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])

@@ -80,7 +80,7 @@ class Generator(nn.Module):
                         strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
-            #ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
+            #ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -95,14 +95,14 @@ class Generator(nn.Module):
                         kernel_init=normal_init(0.01)
                     )
                 )
-                #noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
+                #noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
             else:
                 noise_convs.append(
                     nn.Conv(features=self.hp.gen.upsample_initial_channel //
                            (2 ** (i + 1)), kernel_size=[1],
                            kernel_init=normal_init(0.01))
                 )
-                #noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
+                #noise_conv_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
 
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
         resblocks = []#nn.ModuleList()
@@ -111,7 +111,7 @@ class Generator(nn.Module):
             ch = self.hp.gen.upsample_initial_channel // (2 ** (i + 1))
             for k, d in zip(self.hp.gen.resblock_kernel_sizes, self.hp.gen.resblock_dilation_sizes):
                 resblocks.append(AMPBlock(ch, k, d,self.train))
-                #resblocks_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)))
+                #resblocks_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
 
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1, padding="SAME", use_bias=False,kernel_init=normal_init(0.01))
@@ -121,8 +121,8 @@ class Generator(nn.Module):
         self.resblocks = resblocks
         #self.noise_conv_norms = noise_conv_norms
         #self.resblocks_norms = resblocks_norms
-        #self.norm1=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
-        #self.norm2=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+        #self.norm1=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
+        #self.norm2=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
         #self.ups_norm=ups_norm
         #self.ups.apply(init_weights)
 

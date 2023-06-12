@@ -34,7 +34,7 @@ class Encoder(nn.Module):
                     num_heads=self.n_heads,
                     dropout_rate=self.p_dropout,
                     deterministic=True,
-                    kernel_init=normal_init(0.02)
+                    kernel_init=normal_init(0.01)
                     # proximal_bias=proximal_bias,
                     # proximal_init=proximal_init,
                 )
@@ -382,8 +382,8 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.02))
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.02))
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.01))
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.01))
         self.drop = nn.Dropout(self.p_dropout,deterministic=True)
 
         
