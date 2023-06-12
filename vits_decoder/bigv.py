@@ -54,7 +54,7 @@ class AMPBlock(nn.Module):
         #self.convs2.apply(init_weights)
 
     def __call__(self, x):
-        for c1, c2,c3,c4 in zip(self.convs1, self.convs2,self.norms1):
+        for c1, c2,c3 in zip(self.convs1, self.convs2,self.norms1):
             xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt)
             xt = c3(xt)
