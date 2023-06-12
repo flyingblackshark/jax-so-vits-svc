@@ -19,25 +19,19 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2], padding="same",kernel_init=normal_init(0.02)),
             nn.Conv(features=32, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02)),
         ]
-        # self.norms = [
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
-        #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
-        # ]
-        #self.norms=[nn.GroupNorm(scale_init=normal_init(0.02)) for i in range(5)]
+
+        self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.02))
         #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
     def __call__(self, x):
         fmap = []
        
         x = self.spectrogram(x)
-        #x = jnp.expand_dims(x,0)
+
         x=x.transpose(0,1,3,2)
-        for l in self.convs:
+        for l,n in zip(self.convs,self.norms):
             x = l(x)
-          #  x = n(x)
+            x = n(x)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)
@@ -53,7 +47,6 @@ class DiscriminatorR(nn.Module):
         x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
         #x = x.squeeze(1)
         x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=hop_length, nperseg=win_length) #[B, F, TT, 2]
-        #mag = jnp.linalg.norm(x[2], ord=2, axis =-1) #[B, F, TT]
         mag = jnp.sqrt(jnp.square(jnp.real(x[2]))+jnp.square(jnp.imag(x[2]))+ (1e-9))
         return mag
 

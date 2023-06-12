@@ -20,11 +20,11 @@ class DiscriminatorP(nn.Module):
         #norm_f = weight_norm if self.hp.mpd.use_spectral_norm == False else spectral_norm
 
         self.convs = [
-            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.02)),
-            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1), padding="SAME",kernel_init=normal_init(0.02)),
-            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.02)),
-            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.02)),
-            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding="SAME",kernel_init=normal_init(0.02)),
+            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
+            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
+            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
+            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
+            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01)),
         ]
         # self.norms = [
         #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
@@ -33,9 +33,9 @@ class DiscriminatorP(nn.Module):
         #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02)),
         #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
         # ]
-       # self.norms=[nn.GroupNorm(scale_init=normal_init(0.02)) for i in range(5)]
+        self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.02))
-        #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.02))
+    
 
     def __call__(self, x):
         fmap = []
@@ -48,16 +48,14 @@ class DiscriminatorP(nn.Module):
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
         x=x.transpose(0,1,3,2)
-        for l in self.convs:
+        for l,n in zip(self.convs,self.norms):
             x = l(x)
-            #x = n(x)
+            x = n(x)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x.transpose(0,1,3,2))
         x = self.conv_post(x)
-        #x = self.norm_post(x)
         x=x.transpose(0,1,3,2)
         fmap.append(x)
-        #x = torch.flatten(x, 1, -1)
         x = jnp.reshape(x, [x.shape[0],-1])
         return fmap, x
 
