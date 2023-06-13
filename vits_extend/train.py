@@ -56,7 +56,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         fake_spec_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
         fake_ppg_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
 
-        variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l)
+        variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
             params=variables['params'],batch_stats=variables['batch_stats'])
@@ -78,8 +78,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
     @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
-                      # key: PRNGKey):
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray
+                      ):
       
 
         def loss_fn(params):
@@ -93,7 +93,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
                 {'params': params,'batch_stats': generator_state.batch_stats},     
-                ppg, pit, spec, spk, ppg_l, spec_l, mutable=['batch_stats'])
+                ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': jax.random.PRNGKey(1234)},mutable=['batch_stats'])
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -124,7 +124,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     feat_loss += jnp.mean(jnp.abs(fake - real))
             feat_loss = feat_loss / len(disc_fake)
             feat_loss = feat_loss * 2
-
+            # jax.debug.print("z_f{}",z_f)
+            # jax.debug.print("logs_q{}",logs_q)
+            # jax.debug.print("m_p{}",m_p)
+            # jax.debug.print("logs_p{}",logs_p)
+            # jax.debug.print("logdet_f{}",logdet_f)
             # Kl Loss
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
@@ -188,7 +192,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 mel_fmax=hp.data.mel_fmax)      
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
-        hp=hp,train=False)
+        hp=hp)
         fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -229,10 +233,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
-    key_generator, key_discriminator, key = jax.random.split(key, 3)
+    key_combine,key_generator, key_discriminator, key = jax.random.split(key, 4)
     key_generator = shard_prng_key(key_generator)
     key_discriminator = shard_prng_key(key_discriminator)
-
+    
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
     
     generator_state = create_generator_state(key_generator, SynthesizerTrn)

@@ -26,7 +26,7 @@ class AMPBlock(nn.Module):
     channels:int
     kernel_size:int=3
     dilation:Tuple[int]=(1, 3, 5)
-    train:bool = True
+    #train:bool = True
     def setup(self):
         super(AMPBlock, self).__init__()
         self.convs1 = [
@@ -37,7 +37,7 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
-        self.norms1=[nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
+        self.norms1=[nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
         #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
         #self.convs1.apply(init_weights)
 
@@ -53,11 +53,11 @@ class AMPBlock(nn.Module):
         #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
         #self.convs2.apply(init_weights)
 
-    def __call__(self, x):
+    def __call__(self, x,train = True):
         for c1, c2,c3 in zip(self.convs1, self.convs2,self.norms1):
             xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt)
-            xt = c3(xt)
+            xt = c3(xt,use_running_average=not train)
             xt = nn.leaky_relu(xt, 0.1)
             xt = c2(xt)
             #xt = c4(xt)

@@ -32,10 +32,11 @@ class TextEncoder(nn.Module):
     n_layers:int
     kernel_size:int
     p_dropout:float
+    #train:bool=True
     def setup(self):
         #super().__init__()
         #self.out_channels = out_channels
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5], padding=2)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5], padding="SAME")
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
@@ -43,16 +44,17 @@ class TextEncoder(nn.Module):
             n_heads=self.n_heads,
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
-            p_dropout=self.p_dropout)
+            p_dropout=self.p_dropout,)
+            #train=self.train)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1])
 
-    def __call__(self, x, x_lengths, f0):
+    def __call__(self, x, x_lengths, f0,train=True):
         rng = random.PRNGKey(1234)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
-        x = self.enc(x * x_mask, x_mask)
+        x = self.enc(x * x_mask, x_mask,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,2, axis=1) #self.out_channels, axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
@@ -67,7 +69,7 @@ class ResidualCouplingBlock(nn.Module):
     n_layers:int
     n_flows:int=4
     gin_channels:int=0
-    train:bool=True
+    #train:bool=True
     def setup(
         self
     ):
@@ -82,24 +84,24 @@ class ResidualCouplingBlock(nn.Module):
                     self.dilation_rate,
                     self.n_layers,
                     gin_channels=self.gin_channels,
-                    mean_only=True,
-                    train=self.train
+                    mean_only=True
+                    #train=self.train
                 )
             )
             flows.append(modules.Flip())
         self.flows=flows
 
-    def __call__(self, x, x_mask, g=None, reverse=False):
+    def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         if not reverse:
             total_logdet = 0
             for flow in self.flows:
-                x, log_det = flow(x, x_mask, g=g, reverse=reverse)
+                x, log_det = flow(x, x_mask, g=g, reverse=reverse,train=train)
                 total_logdet += log_det
             return x, total_logdet
         else:
             total_logdet = 0
             for flow in reversed(self.flows):
-                x, log_det = flow(x, x_mask, g=g, reverse=reverse)
+                x, log_det = flow(x, x_mask, g=g, reverse=reverse,train=train)
                 total_logdet += log_det
             return x, total_logdet
 
@@ -188,6 +190,7 @@ class SynthesizerTrn(nn.Module):
             6,
             3,
             0.1,
+           # train=self.train,
         )
         # self.speaker_classifier = SpeakerClassifier(
         #     self.hp.vits.hidden_channels,
@@ -209,27 +212,28 @@ class SynthesizerTrn(nn.Module):
             1,
             4,
             gin_channels=self.hp.vits.spk_dim,
-            train=self.train
+            #train=self.train
         )
-        self.dec = Generator(hp=self.hp,train=self.train)
+        self.dec = Generator(hp=self.hp)
         #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
-    def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l):
+    def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
+        #self.train=train
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
         #spk = self.norm(spk)
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
         #g = jnp.expand_dims(self.emb_g(spk),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l, f0=f0_to_coarse(pit))
+            ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
         z_slice, pit_slice, ids_slice = jax.lax.stop_gradient(commons.rand_slice_segments_with_pitch(
             z_q, pit, spec_l, self.segment_size))
 
-        audio = self.dec(spk, z_slice, pit_slice)
+        audio = self.dec(spk, z_slice, pit_slice,train=train)
 
         # SNAC to flow
-        z_f, logdet_f = self.flow(z_q, spec_mask, g=spk)
-        z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True)
+        z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
+        z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True,train=train)
         # speaker
         #spk_preds = self.speaker_classifier(x)
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)#, spk_preds
@@ -239,22 +243,15 @@ class SynthesizerTrn(nn.Module):
         # jax.debug.print("{}",ppg.shape)
         # jax.debug.print("{}",pit.shape)
         # jax.debug.print("{}",ppg_l)
-        #ppg=ppg[:,:100,:]
-        #pit=pit[:,:100]
-        # for i in range(len(ppg_l)):
-        #     ppg_l[i]=100
-        
-        #ppg_mask = ppg_mask[:,:100]
-        #pit = pit[:,:100]
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l, f0=f0_to_coarse(pit))
-        z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
+            ppg, ppg_l, f0=f0_to_coarse(pit),train=False)
+        z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)
         # jax.debug.print("{}",z.shape)
         
         # jax.debug.print("{}",spk.shape)
         # jax.debug.print("{}",(z * ppg_mask).shape)
         # jax.debug.print("{}",pit.shape)
-        o = self.dec(spk, z * ppg_mask, f0=pit)
+        o = self.dec(spk, z * ppg_mask, f0=pit,train=False)
         #jax.debug.print("{}",o.shape)
         return o
 

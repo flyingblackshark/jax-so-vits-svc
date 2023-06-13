@@ -135,7 +135,7 @@ class WN(nn.Module):
     n_layers:int
     #gin_channels:int=0
     p_dropout:float=0
-    train:bool=True
+    #train:bool=True
     def setup(self):
         #super(WN, self).__init__()
         assert self.kernel_size % 2 == 1
@@ -148,7 +148,7 @@ class WN(nn.Module):
 
         in_layers = []#torch.nn.ModuleList()
         res_skip_layers = []#torch.nn.ModuleList()
-        self.drop = nn.Dropout(self.p_dropout,deterministic=True)
+        self.drop = nn.Dropout(self.p_dropout)
 
         #if self.gin_channels != 0:
         self.cond_layer = nn.Conv(
@@ -185,7 +185,7 @@ class WN(nn.Module):
         #self.in_layer_norms = in_layer_norms
         #self.res_skip_layer_norms = res_skip_layer_norms
 
-    def __call__(self, x, x_mask, g=None, **kwargs):
+    def __call__(self, x, x_mask, g=None,train=True, **kwargs):
         #x = x.transpose(0,2,1)
         output = jnp.zeros_like(x)
         n_channels_tensor = [self.hidden_channels]
@@ -203,7 +203,7 @@ class WN(nn.Module):
                 g_l = jnp.zeros_like(x_in)
 
             acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
-            acts = self.drop(acts)
+            acts = self.drop(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             #res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)
@@ -269,7 +269,7 @@ class ResidualCouplingLayer(nn.Module):
     p_dropout:float=0,
     gin_channels:int=0,
     mean_only:bool=False,
-    train:bool=True
+    #train:bool=True
     def setup(
         self
     ):
@@ -291,14 +291,14 @@ class ResidualCouplingLayer(nn.Module):
             self.dilation_rate,
             self.n_layers,
             p_dropout=self.p_dropout,
-            train=self.train
+            #train=self.train
         )
         self.post = nn.Conv(
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
         # SNAC Speaker-normalized Affine Coupling Layer
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.01))
 
-    def __call__(self, x, x_mask, g=None, reverse=False):
+    def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = jnp.expand_dims(self.snac(g),-1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x, 2, axis=1)
@@ -306,7 +306,7 @@ class ResidualCouplingLayer(nn.Module):
         x0_norm = (x0 - speaker_m) * jnp.exp(-speaker_v) * x_mask
         h = self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1) * x_mask
         # don't use global condition
-        h = self.enc(h, x_mask)
+        h = self.enc(h, x_mask,train=train)
         stats = self.post(h.transpose(0,2,1)).transpose(0,2,1)* x_mask
         if not self.mean_only:
             m, logs = jnp.split(stats,2, 1)
