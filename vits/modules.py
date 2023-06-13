@@ -301,7 +301,7 @@ class ResidualCouplingLayer(nn.Module):
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = jnp.expand_dims(self.snac(g),-1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
-        x0, x1 = jnp.split(x, 2, axis=1)
+        x0, x1 = jnp.split(x,  [self.half_channels] * 2, axis=1)
         # x0 norm
         x0_norm = (x0 - speaker_m) * jnp.exp(-speaker_v) * x_mask
         h = self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1) * x_mask
@@ -309,7 +309,7 @@ class ResidualCouplingLayer(nn.Module):
         h = self.enc(h, x_mask,train=train)
         stats = self.post(h.transpose(0,2,1)).transpose(0,2,1)* x_mask
         if not self.mean_only:
-            m, logs = jnp.split(stats,2, 1)
+            m, logs = jnp.split(stats, [self.half_channels] * 2, 1)
         else:
             m = stats
             logs = jnp.zeros_like(m)
