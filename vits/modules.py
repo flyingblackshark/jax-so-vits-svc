@@ -127,6 +127,7 @@ import jax
 #         return x * x_mask
 
 from jax.nn.initializers import normal as normal_init
+from jax.nn.initializers import constant as constant_init
 class WN(nn.Module):
     hidden_channels:int
     kernel_size:int
@@ -293,9 +294,7 @@ class ResidualCouplingLayer(nn.Module):
             train=self.train
         )
         self.post = nn.Conv(
-            features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=normal_init(0.01))
-        # self.post.weight.data.zero_()
-        # self.post.bias.data.zero_()
+            features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
         # SNAC Speaker-normalized Affine Coupling Layer
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.01))
 
@@ -321,8 +320,10 @@ class ResidualCouplingLayer(nn.Module):
             x1 = (m + x1_norm * jnp.exp(logs)) * x_mask
             x = jnp.concatenate([x0, x1], 1)
             # speaker var to logdet
+
             logdet = jnp.sum(logs * x_mask, [1, 2]) - jnp.sum(
                 jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
+      
             return x, logdet
         else:
             x1 = (x1 - m) * jnp.exp(-logs) * x_mask
@@ -330,8 +331,10 @@ class ResidualCouplingLayer(nn.Module):
             x1 = (speaker_m + x1 * jnp.exp(speaker_v)) * x_mask
             x = jnp.concatenate([x0, x1], 1)
             # speaker var to logdet
+
             logdet = jnp.sum(logs * x_mask, [1, 2]) + jnp.sum(
                  jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
+           
             return x, logdet
 
     # def remove_weight_norm(self):
