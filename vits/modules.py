@@ -134,7 +134,7 @@ class WN(nn.Module):
     dilation_rate:int
     n_layers:int
     #gin_channels:int=0
-    p_dropout:float=0
+    p_dropout:float=0.
     #train:bool=True
     def setup(self):
         #super(WN, self).__init__()
@@ -148,7 +148,7 @@ class WN(nn.Module):
 
         in_layers = []#torch.nn.ModuleList()
         res_skip_layers = []#torch.nn.ModuleList()
-        self.drop = nn.Dropout(self.p_dropout)
+        #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         #if self.gin_channels != 0:
         self.cond_layer = nn.Conv(
@@ -203,7 +203,7 @@ class WN(nn.Module):
                 g_l = jnp.zeros_like(x_in)
 
             acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
-            acts = self.drop(acts,deterministic=not train)
+            #acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             #res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)

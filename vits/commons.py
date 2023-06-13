@@ -133,8 +133,8 @@ def subsequent_mask(length):
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
     n_channels_int = n_channels[0]
     in_act = input_a + input_b
-    t_act = jnp.tanh(in_act[:, :n_channels_int, :])
-    s_act = jax.nn.sigmoid(in_act[:, n_channels_int:, :])
+    t_act = nn.tanh(in_act[:, :n_channels_int, :])
+    s_act = nn.sigmoid(in_act[:, n_channels_int:, :])
     acts = t_act * s_act
     return acts
 
