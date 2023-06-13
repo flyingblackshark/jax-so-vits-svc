@@ -130,8 +130,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # jax.debug.print("logs_p{}",logs_p)
             # jax.debug.print("logdet_f{}",logdet_f)
             # Kl Loss
-            loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
+            loss_kl_f = jnp.abs(kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl)
+            loss_kl_r = jnp.abs(kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl)
             loss_kl_f = jnp.mean(loss_kl_f)
             loss_kl_r = jnp.mean(loss_kl_r)
             # Loss

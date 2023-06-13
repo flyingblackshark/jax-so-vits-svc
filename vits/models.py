@@ -189,8 +189,7 @@ class SynthesizerTrn(nn.Module):
             2,
             6,
             3,
-            0.1,
-           # train=self.train,
+            0.1
         )
         # self.speaker_classifier = SpeakerClassifier(
         #     self.hp.vits.hidden_channels,
@@ -212,17 +211,15 @@ class SynthesizerTrn(nn.Module):
             1,
             4,
             gin_channels=self.hp.vits.spk_dim,
-            #train=self.train
         )
         self.dec = Generator(hp=self.hp)
         #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
-        #self.train=train
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
-        #spk = self.norm(spk)
+
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
-        #g = jnp.expand_dims(self.emb_g(spk),-1)
+
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
