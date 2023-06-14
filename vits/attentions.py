@@ -32,8 +32,8 @@ class Encoder(nn.Module):
                     qkv_features=self.hidden_channels,
                     out_features=self.hidden_channels,
                     num_heads=self.n_heads,
-                    dropout_rate=self.p_dropout,
-                   # deterministic=not self.train
+                    dropout_rate=self.p_dropout
+              
                 )
             )
             norm_layers_1.append(nn.LayerNorm())
@@ -43,7 +43,6 @@ class Encoder(nn.Module):
                     self.filter_channels,
                     self.kernel_size,
                     p_dropout=self.p_dropout
-                   # train=self.train
                 )
             )
             norm_layers_2.append(nn.LayerNorm())

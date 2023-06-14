@@ -52,6 +52,8 @@ class TextEncoder(nn.Module):
         rng = random.PRNGKey(1234)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
+        #jax.debug.print("x_mask {}",x_mask)
+        #jax.debug.print("x_mask shape{}",x_mask.shape)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
