@@ -69,7 +69,7 @@ class Generator(nn.Module):
         #noise_conv_norms = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
         ups = []#nn.ModuleList()
-        ups_norm = []
+        #ups_norm = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
@@ -80,7 +80,7 @@ class Generator(nn.Module):
                         strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
-            ups_norm.append(nn.BatchNorm( axis=-1,scale_init=normal_init(0.01)))
+            #ups_norm.append(nn.BatchNorm( axis=-1,scale_init=normal_init(0.01)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -123,7 +123,7 @@ class Generator(nn.Module):
         #self.resblocks_norms = resblocks_norms
         #self.norm1=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
         #self.norm2=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
-        self.ups_norm=ups_norm
+        #self.ups_norm=ups_norm
         #self.ups.apply(init_weights)
 
     def __call__(self, spk, x, f0,train=True):
@@ -140,17 +140,17 @@ class Generator(nn.Module):
         #f0 = self.f0_upsamp(f0).transpose(1, 2)
         
         har_source = self.m_source(f0)
-        #har_source = har_source.transpose(0,2,1)
-        x = x.transpose(0,2,1)
-        x = self.conv_pre(x)
+        har_source = har_source.transpose(0,2,1)
+        #x = x.transpose(0,2,1)
+        x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
         #x = self.norm1(x)
         for i in range(self.num_upsamples):
             x = nn.leaky_relu(x, 0.1)
             # upsampling
-            x = self.ups[i](x)
-            x = self.ups_norm[i](x,use_running_average=not train)
+            x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
+            #x = self.ups_norm[i](x,use_running_average=not train)
             # nsf
-            x_source = self.noise_convs[i](har_source)
+            x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
             #x_source = self.noise_conv_norms[i](x_source)
             x = x + x_source
             # AMP blocks
@@ -166,9 +166,9 @@ class Generator(nn.Module):
 
         # post conv
         x = nn.leaky_relu(x)
-        x = self.conv_post(x)
+        x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         #x = self.norm2(x)
-        x = x.transpose(0,2,1)
+        #x = x.transpose(0,2,1)
        
         x = nn.tanh(x) 
         return x

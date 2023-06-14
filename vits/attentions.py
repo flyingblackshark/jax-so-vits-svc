@@ -32,8 +32,9 @@ class Encoder(nn.Module):
                     qkv_features=self.hidden_channels,
                     out_features=self.hidden_channels,
                     num_heads=self.n_heads,
-                    dropout_rate=self.p_dropout
-              
+                    dropout_rate=self.p_dropout,
+                    kernel_init=nn.initializers.xavier_normal()
+
                 )
             )
             norm_layers_1.append(nn.LayerNorm())

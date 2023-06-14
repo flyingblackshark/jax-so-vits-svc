@@ -33,7 +33,7 @@ class DiscriminatorP(nn.Module):
         #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)),
         #     nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
         # ]
-        self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
+        #self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01))
     
 
@@ -47,14 +47,14 @@ class DiscriminatorP(nn.Module):
             x = jnp.pad(x, [(0,0),(0, 0),(0,n_pad)], "reflect")
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
-        x=x.transpose(0,1,3,2)
-        for l,n in zip(self.convs,self.norms):
-            x = l(x)
-            x = n(x)
+        #x=x.transpose(0,1,3,2)
+        for l in self.convs:
+            x = l(x.transpose(0,1,3,2)).transpose(0,1,3,2)
+            #x = n(x)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
-            fmap.append(x.transpose(0,1,3,2))
-        x = self.conv_post(x)
-        x=x.transpose(0,1,3,2)
+            fmap.append(x)
+        x = self.conv_post(x.transpose(0,1,3,2)).transpose(0,1,3,2)
+        #x=x.transpose(0,1,3,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
         return fmap, x
