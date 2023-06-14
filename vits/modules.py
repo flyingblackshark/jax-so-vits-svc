@@ -137,15 +137,7 @@ class WN(nn.Module):
     p_dropout:float=0.
     #train:bool=True
     def setup(self):
-        #super(WN, self).__init__()
         assert self.kernel_size % 2 == 1
-        # self.hidden_channels = hidden_channels
-        #self.kernel_size = (self.kernel_size,)
-        # self.dilation_rate = dilation_rate
-        # self.n_layers = n_layers
-        # self.gin_channels = gin_channels
-        # self.p_dropout = p_dropout
-
         in_layers = []#torch.nn.ModuleList()
         res_skip_layers = []#torch.nn.ModuleList()
         #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
@@ -276,14 +268,7 @@ class ResidualCouplingLayer(nn.Module):
         self
     ):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
-        #super().__init__()
-        # self.channels = channels
-        # self.hidden_channels = hidden_channels
-        # self.kernel_size = kernel_size
-        # self.dilation_rate = dilation_rate
-        # self.n_layers = n_layers
         self.half_channels = self.channels // 2
-        # self.mean_only = mean_only
 
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
         # no use gin_channels
@@ -292,8 +277,7 @@ class ResidualCouplingLayer(nn.Module):
             self.kernel_size,
             self.dilation_rate,
             self.n_layers,
-            p_dropout=self.p_dropout,
-            #train=self.train
+            p_dropout=self.p_dropout
         )
         self.post = nn.Conv(
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
