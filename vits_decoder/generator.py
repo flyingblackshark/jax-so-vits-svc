@@ -80,7 +80,7 @@ class Generator(nn.Module):
                         strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
-            ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
+            ups_norm.append(nn.BatchNorm( axis=-1,scale_init=normal_init(0.01)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -148,7 +148,7 @@ class Generator(nn.Module):
             x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x)
-            x = self.ups_norm[i](x)
+            x = self.ups_norm[i](x,use_running_average=not train)
             # nsf
             x_source = self.noise_convs[i](har_source)
             #x_source = self.noise_conv_norms[i](x_source)
