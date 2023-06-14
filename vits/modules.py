@@ -133,7 +133,7 @@ class WN(nn.Module):
     kernel_size:int
     dilation_rate:int
     n_layers:int
-    #gin_channels:int=0
+    gin_channels:int=0
     p_dropout:float=0.
     #train:bool=True
     def setup(self):
