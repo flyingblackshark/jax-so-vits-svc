@@ -221,7 +221,7 @@ class SynthesizerTrn(nn.Module):
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
 
-        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
+        g = jnp.expand_dims(self.emb_g(spk),-1)
 
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)

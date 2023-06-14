@@ -156,10 +156,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         def loss_fn(params):
             disc_fake  = discriminator_state.apply_fn(
                 {'params': params},#,'batch_stats': discriminator_state.batch_stats},    
-             fake_audio_g, mutable=['batch_stats'])
+             fake_audio_g)#, mutable=['batch_stats'])
             disc_real  = discriminator_state.apply_fn(
                 {'params': params},#,'batch_stats':  mutables['batch_stats']},
-                audio_g, mutable=['batch_stats'])
+                audio_g)#, mutable=['batch_stats'])
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean((score_real - 1.0)**2)
@@ -193,7 +193,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
-        fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
+        fake_audio = model.apply({'params': generator.params},#,'batch_stats': generator.batch_stats}, 
+                                 ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
         mel_loss_val = jnp.mean(optax.l2_loss(mel_fake, mel_real))
