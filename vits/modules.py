@@ -150,13 +150,14 @@ class WN(nn.Module):
         res_skip_layers = []#torch.nn.ModuleList()
         #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
-        #if self.gin_channels != 0:
-        self.cond_layer = nn.Conv(
-            features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=normal_init(0.01)
-        )
+        if self.gin_channels != 0:
+            self.cond_layer = nn.Conv(
+                features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=normal_init(0.01)
+            )
+            self.cond_layer_norm = nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01))
             #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
-        #in_layer_norms = []
-        #res_skip_layer_norms = []
+        in_layer_norms = []
+        res_skip_layer_norms = []
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             #padding = int((self.kernel_size * dilation - dilation) / 2)
@@ -169,7 +170,7 @@ class WN(nn.Module):
             )
             #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
-            #in_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
+            in_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
             # last one is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_channels
@@ -179,11 +180,11 @@ class WN(nn.Module):
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.01))
             #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             res_skip_layers.append(res_skip_layer)
-            #res_skip_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
+            res_skip_layer_norms.append(nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)))
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
-        #self.in_layer_norms = in_layer_norms
-        #self.res_skip_layer_norms = res_skip_layer_norms
+        self.in_layer_norms = in_layer_norms
+        self.res_skip_layer_norms = res_skip_layer_norms
 
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
         #x = x.transpose(0,2,1)
@@ -192,10 +193,11 @@ class WN(nn.Module):
 
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
+            g = self.cond_layer_norm(g)
 
         for i in range(self.n_layers):
             x_in = self.in_layers[i](x.transpose(0,2,1)).transpose(0,2,1)
-            #x_in = self.in_layer_norms[i](x_in.transpose(0,2,1)).transpose(0,2,1)
+            x_in = self.in_layer_norms[i](x_in)
             if g is not None:
                 cond_offset = i * 2 * self.hidden_channels
                 g_l = g[:, cond_offset : cond_offset + 2 * self.hidden_channels,:]
@@ -206,7 +208,7 @@ class WN(nn.Module):
             #acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
-            #res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)
+            res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels,:]
                 x = (x + res_acts) * x_mask

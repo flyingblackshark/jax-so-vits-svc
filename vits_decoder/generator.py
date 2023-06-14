@@ -69,7 +69,7 @@ class Generator(nn.Module):
         #noise_conv_norms = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
         ups = []#nn.ModuleList()
-        #ups_norm = []
+        ups_norm = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
@@ -80,7 +80,7 @@ class Generator(nn.Module):
                         strides=[u],
                         padding="SAME",kernel_init=normal_init(0.01))
                 )
-            #ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
+            ups_norm.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -114,7 +114,7 @@ class Generator(nn.Module):
                 #resblocks_norms.append(nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)))
 
         # post conv
-        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1, padding="SAME", use_bias=False,kernel_init=normal_init(0.01))
+        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1, padding="SAME", use_bias=False)
         # weight initialization
         self.ups = ups
         self.noise_convs = noise_convs
@@ -123,7 +123,7 @@ class Generator(nn.Module):
         #self.resblocks_norms = resblocks_norms
         #self.norm1=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
         #self.norm2=nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
-        #self.ups_norm=ups_norm
+        self.ups_norm=ups_norm
         #self.ups.apply(init_weights)
 
     def __call__(self, spk, x, f0,train=True):
@@ -148,7 +148,7 @@ class Generator(nn.Module):
             x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x)
-            #x = self.ups_norm[i](x)
+            x = self.ups_norm[i](x)
             # nsf
             x_source = self.noise_convs[i](har_source)
             #x_source = self.noise_conv_norms[i](x_source)
