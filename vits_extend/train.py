@@ -136,7 +136,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_g, (mutables,fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(mutables_g,fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -147,7 +147,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
 
         new_generator_state = generator_state.apply_gradients(
-            grads=grads_g, batch_stats=mutables['batch_stats'])
+            grads=grads_g, batch_stats=mutables_g['batch_stats'])
         
         def loss_fn(params):
             disc_fake,mutables  = discriminator_state.apply_fn(
@@ -167,7 +167,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
 
-        (loss_d,mutables), grads_d = grad_fn(discriminator_state.params)
+        (loss_d,mutables_d), grads_d = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
         grads_d = jax.lax.pmean(grads_d, axis_name='num_devices')
@@ -175,7 +175,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(
-        grads=grads_d, batch_stats=mutables['batch_stats'])
+        grads=grads_d, batch_stats=mutables_d['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     @partial(jax.pmap, axis_name='num_devices')         
     def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
@@ -202,30 +202,49 @@ def train(rank, args, chkpt_path, hp, hp_str):
         fake_audio = fake_audio[0][0]
         spec_fake = spec_fake[0]
         spec_real = spec_real[0]
-        return mel_loss_val, fake_audio, spec_fake, spec_real
+        return mel_loss_val,audio, fake_audio, spec_fake, spec_real
     def validate(generator):
         loader = tqdm.tqdm(valloader, desc='Validation loop')
        
      
         mel_loss = 0.0
-        for idx, (ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l) in enumerate(loader): 
+        for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
+            if ppg.shape[0] != hp.train.batch_size:
+                real_batchsize = ppg.shape[0]
+                val_batchsize = hp.train.batch_size-ppg.shape[0]
+                ppg = jnp.pad(ppg,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0),(0,0)])
+                audio = jnp.pad(audio,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0),(0,0)])
+                spk = jnp.pad(spk,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0)])
+                pit = jnp.pad(pit,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0)])
+                ppg_l = jnp.pad(ppg_l,[(int(val_batchsize)),(0)])
+            else:
+                real_batchsize = hp.train.batch_size
             ppg=shard(ppg)
             ppg_l=shard(ppg_l)
             pit=shard(pit)
             spk=shard(spk)
             val_audio=shard(audio)
-            mel_loss_val,fake_audio,spec_fake,spec_real=do_validate(generator,ppg,pit,spk,ppg_l,val_audio)
-            if idx == 0:
-                fake_audio,spec_fake,spec_real = \
-            jax.device_get([ fake_audio[0],spec_fake[0],spec_real[0]])
-                res = (audio,fake_audio,spec_fake,spec_real,idx)
+            mel_loss_val,audio,fake_audio,spec_fake,spec_real=do_validate(generator,ppg,pit,spk,ppg_l,val_audio)
+            # if idx == 0:
+            #     fake_audio,spec_fake,spec_real = \
+            # jax.device_get([ fake_audio[0],spec_fake[0],spec_real[0]])
+            #     res = (audio,fake_audio,spec_fake,spec_real,idx)
             #mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
-            mel_loss_val = np.mean(mel_loss_val)
-            mel_loss += mel_loss_val
+            # mel_loss_val = mel_loss_val[:real_batchsize,:]
+            # fake_audio = fake_audio[:real_batchsize,:]
+            # spec_fake = spec_fake[:real_batchsize,:]
+            # spec_real = spec_real[:real_batchsize,:]
+            # mel_loss_val = np.mean(mel_loss_val,axis=0)
+            for i in range(real_batchsize):
+                mel_loss += mel_loss_val[i]
+                if i < hp.log.num_audio:
+                    writer.log_fig_audio(np.asarray(audio[i]), np.asarray(fake_audio[i]), \
+                                         np.asarray(spec_fake[i]), np.asarray(spec_real[i]), i, step)
+
         mel_loss = mel_loss / len(valloader.dataset)
         mel_loss = np.asarray(mel_loss)
-        (audio,fake_audio,spec_fake,spec_real,idx) = res
-        writer.log_fig_audio(audio[0][0], fake_audio, spec_fake, spec_real, idx, step)
+       # (audio,fake_audio,spec_fake,spec_real,idx) = res
+       
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)

@@ -28,22 +28,17 @@ class WN(nn.Module):
 
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(
-                features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=normal_init(0.01)
-            )
+                features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
             self.cond_layer_norm = nn.BatchNorm(scale_init=normal_init(0.01))
         in_layer_norms = []
         res_skip_layer_norms = []
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            #padding = int((self.kernel_size * dilation - dilation) / 2)
             in_layer = nn.Conv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
-                padding="SAME",
-                kernel_init=normal_init(0.01)
             )
-            #in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             in_layers.append(in_layer)
             in_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
             # last one is not necessary
@@ -52,7 +47,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=normal_init(0.01))
+            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1])
             res_skip_layers.append(res_skip_layer)
             res_skip_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
         self.res_skip_layers = res_skip_layers
@@ -116,7 +111,7 @@ class ResidualCouplingLayer(nn.Module):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
         self.half_channels = self.channels // 2
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1])
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -128,7 +123,7 @@ class ResidualCouplingLayer(nn.Module):
         self.post = nn.Conv(
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],kernel_init=normal_init(0.01))
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1])
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = jnp.expand_dims(self.snac(g),-1)

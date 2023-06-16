@@ -381,8 +381,8 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.01))
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,kernel_init=normal_init(0.01))
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding)
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
         self.drop = nn.Dropout(self.p_dropout)
 
         

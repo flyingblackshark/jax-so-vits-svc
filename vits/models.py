@@ -42,7 +42,6 @@ class TextEncoder(nn.Module):
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
-            #train=self.train)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1])
 
     def __call__(self, x, x_lengths, f0,train=True):
@@ -110,7 +109,7 @@ class PosteriorEncoder(nn.Module):
     def setup(
         self
     ):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1])
         self.enc = modules.WN(
             self.hidden_channels,
             self.kernel_size,
@@ -118,7 +117,7 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels,
         )
-        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],kernel_init=normal_init(0.01))
+        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1])
 
     def __call__(self, x, x_lengths,g=None):
         rng = random.PRNGKey(1234)
@@ -156,7 +155,7 @@ class SynthesizerTrn(nn.Module):
     hp:tuple
     train: bool = True
     def setup(self):
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,kernel_init=normal_init(0.01))
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,

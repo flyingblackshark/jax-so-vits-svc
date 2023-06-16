@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
+from vits import commons
 class DiscriminatorP(nn.Module):
     hp:tuple
     period:int
@@ -17,14 +18,14 @@ class DiscriminatorP(nn.Module):
         stride = self.hp.mpd.stride
 
         self.convs = [
-            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
-            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
-            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
-            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1), padding="SAME",kernel_init=normal_init(0.01)),
-            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01)),
+            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1)),
+            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1)),
+            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1)),
+            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1)),
+            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1),
         ]
         self.norms=[nn.BatchNorm(scale_init=normal_init(0.01)) for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1, padding="SAME",kernel_init=normal_init(0.01))
+        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1)
     
 
     def __call__(self, x,train=True):
@@ -41,7 +42,8 @@ class DiscriminatorP(nn.Module):
         for l,n in zip(self.convs,self.norms):
             x = l(x.transpose(0,1,3,2)).transpose(0,1,3,2)
             x = n(x.transpose(0,1,3,2),use_running_average=not train).transpose(0,1,3,2)
-            x = nn.leaky_relu(x, self.LRELU_SLOPE)
+            x = commons.snake(x)
+            #x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,1,3,2)).transpose(0,1,3,2)
         fmap.append(x)
