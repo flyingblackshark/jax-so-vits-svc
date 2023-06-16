@@ -32,10 +32,7 @@ class TextEncoder(nn.Module):
     n_layers:int
     kernel_size:int
     p_dropout:float
-    #train:bool=True
     def setup(self):
-        #super().__init__()
-        #self.out_channels = out_channels
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5], padding="SAME")
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
         self.enc = attentions.Encoder(
@@ -52,8 +49,6 @@ class TextEncoder(nn.Module):
         rng = random.PRNGKey(1234)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
-        #jax.debug.print("x_mask {}",x_mask)
-        #jax.debug.print("x_mask shape{}",x_mask.shape)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
@@ -107,13 +102,8 @@ class ResidualCouplingBlock(nn.Module):
                 total_logdet += log_det
             return x, total_logdet
 
-    # def remove_weight_norm(self):
-    #     for i in range(self.n_flows):
-    #         self.flows[i * 2].remove_weight_norm()
-
 
 class PosteriorEncoder(nn.Module):
-    #in_channels:int
     out_channels:int
     hidden_channels:int
     kernel_size:int
@@ -123,8 +113,6 @@ class PosteriorEncoder(nn.Module):
     def setup(
         self
     ):
-        #super().__init__()
-        #self.out_channels = out_channels
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],kernel_init=normal_init(0.01))
         self.enc = modules.WN(
             self.hidden_channels,
@@ -144,10 +132,6 @@ class PosteriorEncoder(nn.Module):
         m, logs = jnp.split(stats,[ self.out_channels], axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
-
-    # def remove_weight_norm(self):
-    #     self.enc.remove_weight_norm()
-
 def l2_normalize(arr, axis, epsilon=1e-12):
     """
     L2 normalize along a particular axis.
@@ -174,16 +158,8 @@ class SynthesizerTrn(nn.Module):
     segment_size : int
     hp:tuple
     train: bool = True
-    def setup(
-        self,
-        #spec_channels,
-       # segment_size,
-       # hp
-    ):
-        #super().__init__()
-        #self.segment_size = segment_size
+    def setup(self):
         self.emb_g = nn.Dense(self.hp.vits.gin_channels,kernel_init=normal_init(0.01))
-       
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,
@@ -199,7 +175,6 @@ class SynthesizerTrn(nn.Module):
         #     self.hp.vits.spk_dim,
         # )
         self.enc_q = PosteriorEncoder(
-           # self.spec_channels,
             self.hp.vits.inter_channels,
             self.hp.vits.hidden_channels,
             5,
@@ -216,13 +191,11 @@ class SynthesizerTrn(nn.Module):
             gin_channels=self.hp.vits.spk_dim,
         )
         self.dec = Generator(hp=self.hp)
-        #self.norm =  nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
+
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
-
-        g = jnp.expand_dims(self.emb_g(spk),-1)
-
+        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=-1)),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
@@ -239,20 +212,11 @@ class SynthesizerTrn(nn.Module):
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)#, spk_preds
 
     def infer(self, ppg, pit, spk, ppg_l):
-        
-        # jax.debug.print("{}",ppg.shape)
-        # jax.debug.print("{}",pit.shape)
-        # jax.debug.print("{}",ppg_l)
+
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=False)
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)
-        # jax.debug.print("{}",z.shape)
-        
-        # jax.debug.print("{}",spk.shape)
-        # jax.debug.print("{}",(z * ppg_mask).shape)
-        # jax.debug.print("{}",pit.shape)
         o = self.dec(spk, z * ppg_mask, f0=pit,train=False)
-        #jax.debug.print("{}",o.shape)
         return o
 
 

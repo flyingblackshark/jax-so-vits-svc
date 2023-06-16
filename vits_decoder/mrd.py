@@ -20,23 +20,20 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.01)),
         ]
 
-        #self.norms=[nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01)) for i in range(5)]
+        self.norms=[nn.BatchNorm(scale_init=normal_init(0.01)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3], padding="same",kernel_init=normal_init(0.01))
-        #self.norm_post = nn.BatchNorm(use_running_average=False, axis=-1,scale_init=normal_init(0.01))
-    def __call__(self, x):
+       
+    def __call__(self, x,train=True):
         fmap = []
        
         x = self.spectrogram(x)
-
-       # x=x.transpose(0,1,3,2)
-        for l in self.convs:
+        for l,n in zip(self.convs,self.norms):
             x = l(x.transpose(0,1,3,2)).transpose(0,1,3,2)
-            #x = n(x)
+            x = n(x.transpose(0,1,3,2),use_running_average=not train).transpose(0,1,3,2)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,1,3,2)).transpose(0,1,3,2)
 
-        #x=x.transpose(0,1,3,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
 
@@ -45,23 +42,21 @@ class DiscriminatorR(nn.Module):
     def spectrogram(self, x):
         n_fft, hop_length, win_length = self.resolution
         x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
-        #x = x.squeeze(1)
         x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=hop_length, nperseg=win_length) #[B, F, TT, 2]
-        mag = jnp.sqrt(jnp.square(jnp.real(x[2]))+jnp.square(jnp.imag(x[2]))+ (1e-9))
+        mag = jnp.clip(a=jnp.abs(x[2]),a_min=(1e-9))
         return mag
 
 
 class MultiResolutionDiscriminator(nn.Module):
     hp:tuple
     def setup(self):
-        #super(MultiResolutionDiscriminator, self).__init__()
         self.resolutions = eval(self.hp.mrd.resolutions)
         self.discriminators = [DiscriminatorR(self.hp, resolution) for resolution in self.resolutions]
         
 
-    def __call__(self, x):
+    def __call__(self, x,train=True):
         ret = list()
         for disc in self.discriminators:
-            ret.append(disc(x))
+            ret.append(disc(x,train=train))
 
         return ret  # [(feat, score), (feat, score), (feat, score)]

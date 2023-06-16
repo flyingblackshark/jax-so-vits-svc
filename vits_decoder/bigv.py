@@ -37,9 +37,8 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
-        #self.norms1=[nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.norms1=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.convs1.apply(init_weights)
+        self.norms1=[nn.BatchNorm(scale_init=normal_init(0.01)) for i in range(3)]
+
 
         self.convs2 = [
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
@@ -49,23 +48,16 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,
                                padding="SAME",kernel_init=normal_init(0.01))
         ]
-        #self.norms2=[nn.BatchNorm(use_running_average=not self.train, axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.norms2=[nn.GroupNorm(num_groups=40,scale_init=normal_init(0.01)) for i in range(3)]
-        #self.convs2.apply(init_weights)
+        self.norms2=[nn.BatchNorm(use_running_average=not self.train, scale_init=normal_init(0.01)) for i in range(3)]
+
 
     def __call__(self, x,train = True):
-        for c1, c2 in zip(self.convs1, self.convs2):
+        for c1, c2,n1,n2 in zip(self.convs1, self.convs2,self.norms1,self.norms2):
             xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
-            #xt = c3(xt,use_running_average=not train)
+            xt = n1(xt.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             xt = nn.leaky_relu(xt, 0.1)
             xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
-            #xt = c4(xt)
+            xt = n2(xt.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             x = xt + x
         return x
-
-    # def remove_weight_norm(self):
-    #     for l in self.convs1:
-    #         remove_weight_norm(l)
-    #     for l in self.convs2:
-    #         remove_weight_norm(l)

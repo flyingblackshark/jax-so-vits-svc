@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 
 from .mpd import MultiPeriodDiscriminator
 from .mrd import MultiResolutionDiscriminator
-
+from .msd import ScaleDiscriminator
 
 class Discriminator(nn.Module):
     hp:tuple
@@ -15,28 +15,11 @@ class Discriminator(nn.Module):
         #super(Discriminator, self).__init__()
         self.MRD = MultiResolutionDiscriminator(self.hp)
         self.MPD = MultiPeriodDiscriminator(self.hp)
+        self.MSD = ScaleDiscriminator()
 
 
-    def __call__(self, x):
-        r = self.MRD(x)
-        p = self.MPD(x)
-
-        return r + p
-
-
-# if __name__ == '__main__':
-#     hp = OmegaConf.load('../config/base.yaml')
-#     model = Discriminator(hp)
-
-#     x = jax.random.no(3, 1, 16384)
-#     print(x.shape)
-
-#     output = model(x)
-#     for features, score in output:
-#         for feat in features:
-#             print(feat.shape)
-#         print(score.shape)
-
-#     pytorch_total_params = sum(p.numel()
-#                                for p in model.parameters() if p.requires_grad)
-#     print(pytorch_total_params)
+    def __call__(self, x,train=True):
+        r = self.MRD(x,train=train)
+        p = self.MPD(x,train=train)
+        s = self.MSD(x,train=train)
+        return r + p + s
