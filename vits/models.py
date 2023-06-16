@@ -33,7 +33,7 @@ class TextEncoder(nn.Module):
     kernel_size:int
     p_dropout:float
     def setup(self):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5], padding="SAME")
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5])
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
@@ -119,11 +119,11 @@ class PosteriorEncoder(nn.Module):
         )
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1])
 
-    def __call__(self, x, x_lengths,g=None):
+    def __call__(self, x, x_lengths,g=None,train=True):
         rng = random.PRNGKey(1234)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        x = self.enc(x, x_mask, g=g)
+        x = self.enc(x, x_mask, g=g,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,[ self.out_channels], axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
@@ -194,7 +194,7 @@ class SynthesizerTrn(nn.Module):
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=-1)),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
-        z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g)
+        z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
         z_slice, pit_slice, ids_slice = jax.lax.stop_gradient(commons.rand_slice_segments_with_pitch(
             z_q, pit, spec_l, self.segment_size))
 
