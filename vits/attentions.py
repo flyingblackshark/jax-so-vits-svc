@@ -55,17 +55,16 @@ class Encoder(nn.Module):
     def __call__(self, x, x_mask,train=True):
         attn_mask = jnp.expand_dims(x_mask,2) * jnp.expand_dims(x_mask,-1)
         x = x * x_mask
-        #x = x.transpose(0,2,1)
-        #attn_mask = attn_mask.transpose(0,2,1)
+
         for i in range(self.n_layers):
             y = self.attn_layers[i](x.transpose(0,2,1), x.transpose(0,2,1),mask=attn_mask,deterministic=not train).transpose(0,2,1)
-            y = self.drop(y,deterministic=not train)
-            x = self.norm_layers_1[i](x + y)
+            y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
+            x = self.norm_layers_1[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
             y = self.ffn_layers[i](x, x_mask,train=train)
-            y = self.drop(y,deterministic=not train)
-            x = self.norm_layers_2[i](x + y)
-        #x = x.transpose(0,2,1)
+            y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
+            x = self.norm_layers_2[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
+
         x = x * x_mask
         return x
 
@@ -394,6 +393,6 @@ class FFN(nn.Module):
             x = x * nn.sigmoid(1.702 * x)
         else:
             x = nn.relu(x)
-        x = self.drop(x,deterministic=not train)
+        x = self.drop(x.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
         x = self.conv_2((x * x_mask).transpose(0,2,1)).transpose(0,2,1)
         return x * x_mask

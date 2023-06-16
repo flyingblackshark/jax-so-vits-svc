@@ -56,7 +56,7 @@ mrd:
 #############################
 log:
   info_interval: 100
-  eval_interval: 20
+  eval_interval: 50
   save_interval: 50
   num_audio: 6
   pth_dir: 'chkpt'

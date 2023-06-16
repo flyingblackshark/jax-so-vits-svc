@@ -24,7 +24,7 @@ class WN(nn.Module):
         assert self.kernel_size % 2 == 1
         in_layers = []#torch.nn.ModuleList()
         res_skip_layers = []#torch.nn.ModuleList()
-        self.dropout_layer = nn.Dropout(rate=self.p_dropout)
+        #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(
