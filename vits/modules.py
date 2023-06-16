@@ -79,7 +79,7 @@ class WN(nn.Module):
                 g_l = jnp.zeros_like(x_in)
 
             acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
-            acts = self.dropout_layer(acts,deterministic=not train)
+            #acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)

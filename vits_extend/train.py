@@ -213,7 +213,6 @@ def train(rank, args, chkpt_path, hp, hp_str):
             ppg_l=shard(ppg_l)
             pit=shard(pit)
             spk=shard(spk)
-            #tmp_audio=audio
             val_audio=shard(audio)
             mel_loss_val,fake_audio,spec_fake,spec_real=do_validate(generator,ppg,pit,spk,ppg_l,val_audio)
             if idx == 0:
