@@ -25,13 +25,9 @@ def stft(x, fft_size, hop_size, win_length):
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
     x_stft = jax.scipy.signal.stft(x, nfft=fft_size, noverlap=hop_size, nperseg=win_length)
-    #x_stft = jax.scipy.signal.stft(x, fft_size, hop_size, win_length, window, return_complex=False)
-    x_stft=x_stft[2]
-    real = jnp.real(x_stft)#x_stft[..., 0]
-    imag = jnp.imag(x_stft)#x_stft[..., 1]
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.sqrt(jnp.clip(a=(jnp.square(real) + jnp.square(imag)),a_min=1e-7))#.transpose(0,2, 1)
+    return jnp.clip(a=jnp.abs(x_stft[2]),a_min=1e-9)
 
 
 class SpectralConvergengeLoss():

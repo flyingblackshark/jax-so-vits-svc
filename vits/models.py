@@ -66,12 +66,10 @@ class ResidualCouplingBlock(nn.Module):
     n_layers:int
     n_flows:int=4
     gin_channels:int=0
-    #train:bool=True
     def setup(
         self
     ):
-        #super().__init__()
-        flows = []#nn.ModuleList()
+        flows = []
         for i in range(self.n_flows):
             flows.append(
                 modules.ResidualCouplingLayer(
@@ -82,7 +80,6 @@ class ResidualCouplingBlock(nn.Module):
                     self.n_layers,
                     gin_channels=self.gin_channels,
                     mean_only=True
-                    #train=self.train
                 )
             )
             flows.append(modules.Flip())

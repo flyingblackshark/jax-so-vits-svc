@@ -56,12 +56,8 @@ class TacotronSTFT():
         #jax.debug.print("{}",y.shape)
         y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
                                     mode='reflect')
-
-
-        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size)
-       #spec = jnp.sqrt(jnp.real(spec[2])**2+jnp.imag(spec[2])**2)
-        spec = jnp.sqrt((jnp.square(jnp.real(spec[2]))+jnp.square(jnp.imag(spec[2]))) + (1e-9))
-        #spec = torch.norm(spec, p=2, dim=-1)
+        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size)    
+        spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
 
         return spec
 
@@ -75,18 +71,13 @@ class TacotronSTFT():
         -------
         mel_output: torch.FloatTensor of shape (B, n_mel_channels, T)
         """
-       # assert(torch.min(y.data) >= -1)
+        #assert(torch.min(y.data) >= -1)
         #assert(torch.max(y.data) <= 1)
 
         y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
                                     mode='reflect')
-        #y = y.squeeze(1)
-
         spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size)
-        spec = spec[2]
-        #spec = jnp.sqrt((spec**2).sum(-1) + (1e-9))
-        spec = jnp.sqrt((jnp.square(jnp.real(spec))+jnp.square(jnp.imag(spec))) + (1e-9))
-
+        spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
         spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
 

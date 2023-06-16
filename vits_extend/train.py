@@ -31,13 +31,13 @@ import jax.numpy as jnp
 import orbax.checkpoint
 from functools import partial
 from typing import Any, Tuple
-from flax.training.train_state import TrainState
+from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
 import torch
 PRNGKey = jnp.ndarray
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: Any
+class TrainState(train_state.TrainState):
+    batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
@@ -59,7 +59,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])#,batch_stats=variables['batch_stats'])
+            params=variables['params'],batch_stats=variables['batch_stats'])
         
         return state
     @partial(jax.pmap, static_broadcasted_argnums=(1))
