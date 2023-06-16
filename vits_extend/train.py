@@ -34,6 +34,7 @@ from typing import Any, Tuple
 from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
 import torch
+from flax.training import orbax_utils
 PRNGKey = jnp.ndarray
 
 class TrainState(train_state.TrainState):
@@ -208,26 +209,31 @@ def train(rank, args, chkpt_path, hp, hp_str):
        
      
         mel_loss = 0.0
-        for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
-            if ppg.shape[0] != hp.train.batch_size:
-                real_batchsize = ppg.shape[0]
-                val_batchsize = hp.train.batch_size-ppg.shape[0]
-                ppg = jnp.pad(ppg,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0),(0,0)])
-                audio = jnp.pad(audio,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0),(0,0)])
-                spk = jnp.pad(spk,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0)])
-                pit = jnp.pad(pit,[(int(val_batchsize/2),int(val_batchsize/2)),(0,0)])
-                ppg_l = jnp.pad(ppg_l,[(int(val_batchsize)),(0)])
-            else:
-                real_batchsize = hp.train.batch_size
-            ppg=shard(ppg)
-            ppg_l=shard(ppg_l)
-            pit=shard(pit)
-            spk=shard(spk)
-            val_audio=shard(audio)
-            mel_loss_val,audio,fake_audio,spec_fake,spec_real=do_validate(generator,ppg,pit,spk,ppg_l,val_audio)
+        for val_ppg, val_ppg_l, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
+            # if ppg.shape[0] != hp.train.batch_size:
+            #     real_batchsize = ppg.shape[0]
+            #     val_batchsize = hp.train.batch_size-ppg.shape[0]
+            #     ppg = np.pad(ppg,[(int(val_batchsize),0),(0,0),(0,0)])
+            #     audio = np.pad(audio,[(int(val_batchsize),0),(0,0),(0,0)])
+            #     spk = np.pad(spk,[(int(val_batchsize),0),(0,0)])
+            #     pit = np.pad(pit,[(int(val_batchsize),0),(0,0)])
+            #     ppg_l = np.pad(ppg_l,[(int(val_batchsize),0)])
+            #     jax.debug.print("ppg{}",ppg.shape)
+            #     jax.debug.print("audio{}",audio.shape)
+            #     jax.debug.print("spk{}",spk.shape)
+            #     jax.debug.print("pit{}",pit.shape)
+            #     jax.debug.print("ppg_l{}",ppg_l.shape)
+            # else:
+            #     real_batchsize = hp.train.batch_size
+            val_ppg=shard(val_ppg)
+            val_ppg_l=shard(val_ppg_l)
+            val_pit=shard(val_pit)
+            val_spk=shard(val_spk)
+            val_audio=shard(val_audio)
+            mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_ppg,val_pit,val_spk,val_ppg_l,val_audio)
             # if idx == 0:
-            #     fake_audio,spec_fake,spec_real = \
-            # jax.device_get([ fake_audio[0],spec_fake[0],spec_real[0]])
+            val_audio,val_fake_audio,spec_fake,spec_real = \
+            jax.device_get([val_audio[0],val_fake_audio[0],spec_fake[0],spec_real[0]])
             #     res = (audio,fake_audio,spec_fake,spec_real,idx)
             #mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
             # mel_loss_val = mel_loss_val[:real_batchsize,:]
@@ -235,11 +241,17 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # spec_fake = spec_fake[:real_batchsize,:]
             # spec_real = spec_real[:real_batchsize,:]
             # mel_loss_val = np.mean(mel_loss_val,axis=0)
-            for i in range(real_batchsize):
-                mel_loss += mel_loss_val[i]
-                if i < hp.log.num_audio:
-                    writer.log_fig_audio(np.asarray(audio[i]), np.asarray(fake_audio[i]), \
-                                         np.asarray(spec_fake[i]), np.asarray(spec_real[i]), i, step)
+            # jax.debug.print("audio:{}",audio.shape)
+            # jax.debug.print("fake_audio:{}",fake_audio.shape)
+            # jax.debug.print("spec_fake:{}",spec_fake.shape)
+            # jax.debug.print("spec_real:{}",spec_real.shape)
+            # jax.debug.print("mel_loss_val:{}",mel_loss_val.shape)
+
+            #for i in range(real_batchsize):
+            mel_loss += mel_loss_val.mean()
+                # if i < hp.log.num_audio:
+            writer.log_fig_audio(np.asarray(val_audio), np.asarray(val_fake_audio), \
+            np.asarray(spec_fake), np.asarray(spec_real), 0, step)
 
         mel_loss = mel_loss / len(valloader.dataset)
         mel_loss = np.asarray(mel_loss)
@@ -309,23 +321,26 @@ def train(rank, args, chkpt_path, hp, hp_str):
     #     restored = mngr.restore(mngr.latest_step(), 
     #                     items=train_state, restore_kwargs=restore_args)
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
+    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
+    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    checkpoint_manager = orbax.checkpoint.CheckpointManager(
+        'chkpt/sovits5.0/', orbax_checkpointer, options)
+    if checkpoint_manager.latest_step() is not None:
+        target = {'model_g': generator_state, 'model_d': discriminator_state}
+        step = checkpoint_manager.latest_step()  # step = 4
+        states=checkpoint_manager.restore(step,items=target)
+        discriminator_state=states['model_d']
+        generator_state=states['model_g']
 
     for epoch in range(init_epoch, hp.train.epochs):
 
-        if rank == 0 and epoch % hp.log.eval_interval == 0:
-            validate(generator_state)
+        
             # (audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val),val_loss = validate(generator_state)
             # audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,val_loss = \
             # jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],val_loss[0]])
             # writer.log_fig_audio(audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step)
             # writer.log_validation(val_loss, step)
-        # if rank == 0 and epoch % hp.log.save_interval == 0:
-        #     model_g_save_args = jax.tree_map(lambda _: orbax.checkpoint.SaveArgs(), generator_state)
-        #     model_d_save_args = jax.tree_map(lambda _: orbax.checkpoint.SaveArgs(), discriminator_state)
-        #     mngr.save(step, items={
-        #         'model_g': generator_state,
-        #         'model_d': discriminator_state
-        #     },save_kwargs={'model_g': {'save_args': model_g_save_args},'model_d': {'save_args': model_d_save_args}})
+       
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:
@@ -355,4 +370,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
                 logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f  | step %d" % (
                     loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, step))
+        if rank == 0 and epoch % hp.log.eval_interval == 0:
+            validate(generator_state)
+        if rank == 0 and epoch % hp.log.save_interval == 0:
+            ckpt = {'model_g': generator_state, 'model_d': discriminator_state}
+            save_args = orbax_utils.save_args_from_target(ckpt)
+            checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
 
