@@ -198,8 +198,8 @@ class SynthesizerTrn(nn.Module):
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
-        z_slice, pit_slice, ids_slice = jax.lax.stop_gradient(commons.rand_slice_segments_with_pitch(
-            z_q, pit, spec_l, self.segment_size))
+        z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
+            z_q, pit, spec_l, self.segment_size)
 
         audio = self.dec(spk, z_slice, pit_slice,train=train)
 
