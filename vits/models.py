@@ -189,9 +189,12 @@ class SynthesizerTrn(nn.Module):
         self.dec = Generator(hp=self.hp)
 
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
+        
         rng = random.PRNGKey(1234)
         ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
-        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=-1)),-1)
+        #jax.debug.print("spk before{}",spk)
+        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
+        #jax.debug.print("g {}",g)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
