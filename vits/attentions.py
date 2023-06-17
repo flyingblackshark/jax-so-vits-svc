@@ -28,7 +28,7 @@ class Encoder(nn.Module):
         norm_layers_2 = []
         for i in range(self.n_layers):
             attn_layers.append(
-               nn.attention.MultiHeadDotProductAttention(
+               nn.attention.SelfAttention(
                     qkv_features=self.hidden_channels,
                     out_features=self.hidden_channels,
                     num_heads=self.n_heads,
@@ -57,7 +57,7 @@ class Encoder(nn.Module):
         x = x * x_mask
 
         for i in range(self.n_layers):
-            y = self.attn_layers[i](x.transpose(0,2,1), x.transpose(0,2,1),mask=attn_mask,deterministic=not train).transpose(0,2,1)
+            y = self.attn_layers[i](x.transpose(0,2,1),mask=attn_mask,deterministic=not train).transpose(0,2,1)
             y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
             x = self.norm_layers_1[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
