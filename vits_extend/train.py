@@ -42,14 +42,18 @@ class TrainState(train_state.TrainState):
 
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
-
+    total_steps = 18000
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
-        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        
+        exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
+                                                      decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
+                                                      staircase=False)
+        tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
         fake_pit = jnp.ones((hp.train.batch_size,400))
         fake_spec = jnp.ones((hp.train.batch_size,513,400))
@@ -68,10 +72,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
         fake_audio = jnp.ones((hp.train.batch_size,1,8000))
-
-        tx = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
+                                                      decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
+                                                      staircase=False)
+        tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         variables = model.init(rng, fake_audio)
-       
+
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
             params=variables['params'], batch_stats=variables['batch_stats'])
         
