@@ -17,8 +17,8 @@ class SpeakerAdapter(nn.Module):
 
     def __call__(self, x, speaker_embedding):
         x = x.transpose(0,2,1)
-        mean = x.mean(axis=-1, keepdims=True)
-        var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
+        mean = jnp.mean(x,axis=2, keepdims=True)
+        var = jnp.mean(jnp.square(x - mean),axis=2, keepdims=True)
         std = jnp.sqrt(var + self.epsilon)
         y = (x - mean) / std
         scale = self.W_scale(speaker_embedding)
