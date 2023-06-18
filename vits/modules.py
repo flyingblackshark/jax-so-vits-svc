@@ -29,8 +29,8 @@ class WN(nn.Module):
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(
                 features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
-            #self.cond_layer_norm = nn.BatchNorm(scale_init=normal_init(0.01))
-            self.cond_layer_norm = nn.LayerNorm(scale_init=normal_init(0.01))
+            self.cond_layer_norm = nn.BatchNorm(scale_init=normal_init(0.01))
+            #self.cond_layer_norm = nn.LayerNorm(scale_init=normal_init(0.01))
         in_layer_norms = []
         res_skip_layer_norms = []
         for i in range(self.n_layers):
@@ -41,8 +41,8 @@ class WN(nn.Module):
                 kernel_dilation=dilation,
             )
             in_layers.append(in_layer)
-            #in_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
-            in_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
+            in_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
+            #in_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
             # last one is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_channels
@@ -51,8 +51,8 @@ class WN(nn.Module):
 
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1])
             res_skip_layers.append(res_skip_layer)
-            #res_skip_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
-            res_skip_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
+            res_skip_layer_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
+            #res_skip_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
         self.in_layer_norms = in_layer_norms
