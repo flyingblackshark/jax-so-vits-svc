@@ -63,7 +63,7 @@ class Generator(nn.Module):
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
-                stride_f0 = np.prod(self.hp.gen.upsample_rates[i + 1:])
+                stride_f0 = jnp.prod(self.hp.gen.upsample_rates[i + 1:])
                 stride_f0 = int(stride_f0)
                 noise_convs.append(
                     nn.Conv(
