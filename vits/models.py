@@ -28,7 +28,7 @@ class TextEncoder(nn.Module):
     p_dropout:float
     def setup(self):
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5])
-        self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
+        self.pit = nn.Embed(256, self.hidden_channels)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
             filter_channels=self.filter_channels,
