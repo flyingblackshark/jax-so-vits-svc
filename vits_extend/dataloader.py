@@ -22,12 +22,13 @@ def create_dataloader_train(hps, n_gpus, rank):
     train_loader = DataLoader(
         train_dataset,
         batch_size=hps.train.batch_size,
-        num_workers=8,
+        num_workers=32,
         shuffle=True,
-        pin_memory=True,
+        pin_memory=False,
         collate_fn=collate_fn,
         persistent_workers=True,
-        drop_last=True)#,
+        drop_last=True,
+        prefetch_factor=8)#,
         #batch_sampler=train_sampler)
     return train_loader
 

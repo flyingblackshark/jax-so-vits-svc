@@ -37,7 +37,7 @@ class Encoder(nn.Module):
 
                 )
             )
-            norm_layers_1.append(nn.LayerNorm())
+            norm_layers_1.append(nn.LayerNorm(scale_init=normal_init(0.01)))
             ffn_layers.append(
                 FFN(
                     self.hidden_channels,
@@ -46,7 +46,7 @@ class Encoder(nn.Module):
                     p_dropout=self.p_dropout
                 )
             )
-            norm_layers_2.append(nn.LayerNorm())
+            norm_layers_2.append(nn.LayerNorm(scale_init=normal_init(0.01)))
         self.attn_layers = attn_layers
         self.norm_layers_1 = norm_layers_1
         self.ffn_layers = ffn_layers

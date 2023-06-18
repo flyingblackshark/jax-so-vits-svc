@@ -42,7 +42,7 @@ class TrainState(train_state.TrainState):
 
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
-    total_steps = 18000
+    total_steps = 180000
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
