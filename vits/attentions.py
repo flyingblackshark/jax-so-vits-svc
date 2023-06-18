@@ -377,7 +377,7 @@ class FFN(nn.Module):
     def __call__(self, x, x_mask,train=True):
         x = self.conv_1((x * x_mask).transpose(0,2,1)).transpose(0,2,1)
         if self.activation == "gelu":
-            x = x * nn.sigmoid(1.702 * x)
+            x = nn.gelu(x)
         else:
             x = nn.relu(x)
         x = self.drop(x.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
