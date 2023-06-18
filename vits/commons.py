@@ -153,8 +153,8 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
 def sequence_mask(length, max_length=None):
     if max_length is None:
         max_length = length.max()
-    x = jnp.arange(max_length,dtype=length.dtype)
-    return (jnp.expand_dims(x,0) < jnp.expand_dims(length,1)).astype(length.dtype)
+    x = jnp.arange(max_length)
+    return jnp.expand_dims(x,0) < jnp.expand_dims(length,1)
 
 
 def generate_path(duration, mask):
