@@ -44,7 +44,7 @@ class Generator(nn.Module):
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
-        self.scale_factor = jnp.prod(self.hp.gen.upsample_rates)
+        self.scale_factor = np.prod(self.hp.gen.upsample_rates)
         self.m_source = SourceModuleHnNSF(sampling_rate=self.hp.data.sampling_rate)
         noise_convs = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
@@ -63,7 +63,7 @@ class Generator(nn.Module):
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
-                stride_f0 = jnp.prod(self.hp.gen.upsample_rates[i + 1:])
+                stride_f0 = np.prod(self.hp.gen.upsample_rates[i + 1:])
                 stride_f0 = int(stride_f0)
                 noise_convs.append(
                     nn.Conv(
