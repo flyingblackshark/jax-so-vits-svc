@@ -114,7 +114,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Generator Loss 
             disc_fake,_ = discriminator_state.apply_fn(
             {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
-            fake_audio,train=False, mutable=['batch_stats'])
+            fake_audio,train=False, mutable=False)
             score_loss = 0.0
             for (_, score_fake) in disc_fake:
                 score_loss += jnp.mean(jnp.square(score_fake - 1.0))
@@ -123,7 +123,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Feature Loss
             disc_real,_= discriminator_state.apply_fn(
             {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
-            audio,train=False, mutable=['batch_stats'])
+            audio,train=False, mutable=False)
 
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):

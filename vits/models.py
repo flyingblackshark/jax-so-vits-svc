@@ -191,7 +191,7 @@ class SynthesizerTrn(nn.Module):
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
         
         rng = random.PRNGKey(1234)
-        ppg = ppg + jax.random.normal(rng,ppg.shape)#torch.randn_like(ppg)  # Perturbation
+        ppg = ppg + jax.random.normal(rng,ppg.shape)*0.01#torch.randn_like(ppg)  # Perturbation
         #jax.debug.print("spk before{}",spk)
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
         #jax.debug.print("g {}",g)
