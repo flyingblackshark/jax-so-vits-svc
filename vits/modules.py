@@ -104,7 +104,6 @@ class ResidualCouplingLayer(nn.Module):
     p_dropout:float=0,
     gin_channels:int=0,
     mean_only:bool=False,
-    #train:bool=True
     def setup(
         self
     ):
@@ -147,14 +146,10 @@ class ResidualCouplingLayer(nn.Module):
             x1 = (m + x1_norm * jnp.exp(logs)) * x_mask
             
             x = jnp.concatenate([x0, x1], 1)
-            # jax.debug.print("not reverse x1_norm{}",x1_norm)
-            # jax.debug.print("not reverse x1{}",x1)
-            # jax.debug.print("not reverse x{}",x)
             # speaker var to logdet
 
             logdet = jnp.sum(logs * x_mask, [1, 2]) - jnp.sum(
                 jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
-            #jax.debug.print("not reverse x_mask{}",x_mask)
             return x, logdet
         else:
             x1 = (x1 - m) * jnp.exp(-logs) * x_mask
@@ -162,10 +157,6 @@ class ResidualCouplingLayer(nn.Module):
             x1 = (speaker_m + x1 * jnp.exp(speaker_v)) * x_mask
             x = jnp.concatenate([x0, x1], 1)
             # speaker var to logdet
-            # jax.debug.print("reverse x1_norm{}",x1_norm)
-            # jax.debug.print("reverse x1{}",x1)
-            # jax.debug.print("reverse x{}",x)
             logdet = jnp.sum(logs * x_mask, [1, 2]) + jnp.sum(
                  jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
-            #jax.debug.print("reverse x_mask{}",x_mask)
             return x, logdet

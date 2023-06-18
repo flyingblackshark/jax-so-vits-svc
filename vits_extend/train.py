@@ -3,11 +3,6 @@ import time
 import logging
 import math
 import tqdm
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.distributed import init_process_group
-# from torch.nn.parallel import DistributedDataParallel
 import itertools
 import traceback
 import flax
@@ -21,12 +16,10 @@ from vits_extend.dataloader import create_dataloader_eval
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
 from vits_extend.stft_loss import MultiResolutionSTFTLoss
-#from vits_extend.validation import validate
 from vits_decoder.discriminator import Discriminator
 from vits.models import SynthesizerTrn
 from vits import commons
 from vits.losses import kl_loss
-#from vits.commons import clip_grad_value_
 import jax.numpy as jnp
 import orbax.checkpoint
 from functools import partial
@@ -135,8 +128,6 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Kl Loss
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            #loss_kl_f = jnp.mean(loss_kl_f)
-            #loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
             loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
@@ -266,35 +257,6 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer = MyWriter(hp, log_dir)
         valloader = create_dataloader_eval(hp)
     
-    # options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=3, keep_period=2)
-    # mngr = orbax.checkpoint.CheckpointManager(
-    #         'chkpt/sovits5.0/', {'model_g': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler()),
-    #                                      'model_d': orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())},
-    #         options=options)
-    # if mngr.latest_step() is not None:  # existing checkpoint present
-    #     # Use convenience function to construct args.
-    #     shardings = jax.tree_map(lambda x: x.sharding, generator_state)
-    #     restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args(
-    #                         train_state, shardings)
-    #     # Directly construct args.
-    #     restore_args = jax.tree_map(
-    #         lambda x: orbax.checkpoint.ArrayRestoreArgs(
-    #             # Restore as object. Could also be np.ndarray, int, or others.
-    #             restore_type=jax.Array,
-    #             # Cast the restored array to a specific dtype.
-    #             dtype=np.float32,
-    #             mesh=x.sharding.mesh,
-    #             mesh_axes=x.sharding.spec,
-    #             # Padding or truncation may occur. Ensure that the shape matches the
-    #             # saved shape!
-    #             global_shape=x.shape,
-    #         ),
-    #         train_state)
-    #     # Note the use of plural 'items' and 'restore_kwargs'. This is because we may
-    #     # be managing multiple items, as shown in the previous section. It is also
-    #     # valid to just have one item, as shown here.
-    #     restored = mngr.restore(mngr.latest_step(), 
-    #                     items=train_state, restore_kwargs=restore_args)
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
@@ -309,13 +271,6 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     for epoch in range(init_epoch, hp.train.epochs):
 
-        
-            # (audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step_val),val_loss = validate(generator_state)
-            # audio_val,fake_audio_val,spec_fake_val,spec_real_val,idx_val,val_loss = \
-            # jax.device_get([audio_val[0], fake_audio_val[0],spec_fake_val[0],spec_real_val[0],idx_val[0],val_loss[0]])
-            # writer.log_fig_audio(audio_val, fake_audio_val, spec_fake_val, spec_real_val, idx_val, step)
-            # writer.log_validation(val_loss, step)
-       
         if rank == 0:
             loader = tqdm.tqdm(trainloader, desc='Loading train data')
         else:

@@ -1,10 +1,4 @@
 
-#import torch
-
-#from torch import nn
-#from torch.nn import functional as F
-# from absl import app
-# from absl import flags
 import flax
 from flax import linen as nn
 from jax.nn.initializers import normal as normal_init
@@ -21,7 +15,7 @@ from vits import commons
 from vits import modules
 from vits.utils import f0_to_coarse
 from vits_decoder.generator import Generator
-#from vits.modules_grl import SpeakerClassifier
+
 
 class TextEncoder(nn.Module):
     in_channels:int
@@ -129,22 +123,6 @@ class PosteriorEncoder(nn.Module):
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
 def l2_normalize(arr, axis, epsilon=1e-12):
-    """
-    L2 normalize along a particular axis.
-
-    Doc taken from tf.nn.l2_normalize:
-
-    https://www.tensorflow.org/api_docs/python/tf/math/l2_normalize
-
-        output = x / (
-            sqrt(
-                max(
-                    sum(x**2),
-                    epsilon
-                )
-            )
-        )
-    """
     sq_arr = jnp.power(arr, 2)
     square_sum = jnp.sum(sq_arr, axis=axis, keepdims=True)
     max_weights = jnp.maximum(square_sum, epsilon)
@@ -191,10 +169,8 @@ class SynthesizerTrn(nn.Module):
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
         
         rng = random.PRNGKey(1234)
-        ppg = ppg + jax.random.normal(rng,ppg.shape)*0.01#torch.randn_like(ppg)  # Perturbation
-        #jax.debug.print("spk before{}",spk)
+        ppg = ppg + jax.random.normal(rng,ppg.shape)*0.01  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
-        #jax.debug.print("g {}",g)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
