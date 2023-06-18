@@ -6,9 +6,6 @@ from vits.data_utils import DistributedBucketSampler
 from vits.data_utils import TextAudioSpeakerCollate
 from vits.data_utils import TextAudioSpeakerSet
 
-# class ToNumpy(object):
-#   def __call__(self, pic):
-#     return np.array(pic, dtype=float)
 def create_dataloader_train(hps, n_gpus, rank):
     collate_fn = TextAudioSpeakerCollate()
     train_dataset = TextAudioSpeakerSet(hps.data.training_files, hps.data)
