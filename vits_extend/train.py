@@ -138,7 +138,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             #loss_kl_f = jnp.mean(loss_kl_f)
             #loss_kl_r = jnp.mean(loss_kl_r)
             # Loss
-            loss_g = mel_loss +score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
+            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 0.5
 
             return loss_g, (mutables,fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
@@ -216,46 +216,15 @@ def train(rank, args, chkpt_path, hp, hp_str):
      
         mel_loss = 0.0
         for val_ppg, val_ppg_l, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
-            # if ppg.shape[0] != hp.train.batch_size:
-            #     real_batchsize = ppg.shape[0]
-            #     val_batchsize = hp.train.batch_size-ppg.shape[0]
-            #     ppg = np.pad(ppg,[(int(val_batchsize),0),(0,0),(0,0)])
-            #     audio = np.pad(audio,[(int(val_batchsize),0),(0,0),(0,0)])
-            #     spk = np.pad(spk,[(int(val_batchsize),0),(0,0)])
-            #     pit = np.pad(pit,[(int(val_batchsize),0),(0,0)])
-            #     ppg_l = np.pad(ppg_l,[(int(val_batchsize),0)])
-            #     jax.debug.print("ppg{}",ppg.shape)
-            #     jax.debug.print("audio{}",audio.shape)
-            #     jax.debug.print("spk{}",spk.shape)
-            #     jax.debug.print("pit{}",pit.shape)
-            #     jax.debug.print("ppg_l{}",ppg_l.shape)
-            # else:
-            #     real_batchsize = hp.train.batch_size
             val_ppg=shard(val_ppg)
             val_ppg_l=shard(val_ppg_l)
             val_pit=shard(val_pit)
             val_spk=shard(val_spk)
             val_audio=shard(val_audio)
             mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_ppg,val_pit,val_spk,val_ppg_l,val_audio)
-            # if idx == 0:
             val_audio,val_fake_audio,spec_fake,spec_real = \
             jax.device_get([val_audio[0],val_fake_audio[0],spec_fake[0],spec_real[0]])
-            #     res = (audio,fake_audio,spec_fake,spec_real,idx)
-            #mel_loss_val = jax.lax.pmean(mel_loss_val, axis_name='num_devices')
-            # mel_loss_val = mel_loss_val[:real_batchsize,:]
-            # fake_audio = fake_audio[:real_batchsize,:]
-            # spec_fake = spec_fake[:real_batchsize,:]
-            # spec_real = spec_real[:real_batchsize,:]
-            # mel_loss_val = np.mean(mel_loss_val,axis=0)
-            # jax.debug.print("audio:{}",audio.shape)
-            # jax.debug.print("fake_audio:{}",fake_audio.shape)
-            # jax.debug.print("spec_fake:{}",spec_fake.shape)
-            # jax.debug.print("spec_real:{}",spec_real.shape)
-            # jax.debug.print("mel_loss_val:{}",mel_loss_val.shape)
-
-            #for i in range(real_batchsize):
             mel_loss += mel_loss_val.mean()
-                # if i < hp.log.num_audio:
             writer.log_fig_audio(np.asarray(val_audio), np.asarray(val_fake_audio), \
             np.asarray(spec_fake), np.asarray(spec_real), 0, step)
 
