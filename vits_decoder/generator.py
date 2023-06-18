@@ -86,7 +86,7 @@ class Generator(nn.Module):
                 resblocks.append(AMPBlock(ch, k, d))
 
         # post conv
-        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1, padding="SAME", use_bias=False)
+        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False)
         # weight initialization
        
         self.ups_norms = ups_norms
