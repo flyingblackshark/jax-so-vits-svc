@@ -149,10 +149,10 @@ class SourceModuleHnNSF(nn.Module):
 
         # to merge source harmonics into a single excitation
 
-        self.merge_w=np.asarray([
+        self.merge_w=jnp.asarray([
             -0.1044, -0.4892, -0.4733, 0.4337, -0.2321,
            -0.1889, 0.1315, -0.1002, 0.0590,])
-        self.merge_b=np.asarray([-0.2908])
+        self.merge_b=jnp.asarray([-0.2908])
 
     def __call__(self, x):
         """
