@@ -65,11 +65,11 @@ class WN(nn.Module):
 
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
-            g = self.cond_layer_norm(g.transpose(0,2,1)).transpose(0,2,1)
+            g = self.cond_layer_norm(g.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
 
         for i in range(self.n_layers):
             x_in = self.in_layers[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x_in = self.in_layer_norms[i](x_in.transpose(0,2,1)).transpose(0,2,1)
+            x_in = self.in_layer_norms[i](x_in.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             if g is not None:
                 cond_offset = i * 2 * self.hidden_channels
                 g_l = g[:, cond_offset : cond_offset + 2 * self.hidden_channels,:]
@@ -80,7 +80,7 @@ class WN(nn.Module):
             #acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
-            #res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
+            res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels,:]
                 x = (x + res_acts) * x_mask
