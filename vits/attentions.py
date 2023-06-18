@@ -363,19 +363,8 @@ class FFN(nn.Module):
     p_dropout:float=0.0
     activation:str=None
     causal:bool=False
-    #train:bool =True
-    def setup(
-        self
-    ):
-        # super().__init__()
-        # self.in_channels = in_channels
-        # self.out_channels = out_channels
-        # self.filter_channels = filter_channels
-        # self.kernel_size = kernel_size
-        # self.p_dropout = p_dropout
-        # self.activation = activation
-        # self.causal = causal
 
+    def setup(self):
         if self.causal:
             self.padding = "CAUSAL"
         else:
@@ -384,10 +373,8 @@ class FFN(nn.Module):
         self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
         self.drop = nn.Dropout(self.p_dropout)
 
-        
-    #@nn.compact
+
     def __call__(self, x, x_mask,train=True):
-        #x=x.transpose(0,2,1)
         x = self.conv_1((x * x_mask).transpose(0,2,1)).transpose(0,2,1)
         if self.activation == "gelu":
             x = x * nn.sigmoid(1.702 * x)
