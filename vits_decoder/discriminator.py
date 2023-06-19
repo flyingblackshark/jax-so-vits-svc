@@ -15,11 +15,11 @@ class Discriminator(nn.Module):
         #super(Discriminator, self).__init__()
         self.MRD = MultiResolutionDiscriminator(self.hp)
         self.MPD = MultiPeriodDiscriminator(self.hp)
-        self.MSD = ScaleDiscriminator()
+        #self.MSD = ScaleDiscriminator()
 
 
     def __call__(self, x,train=True):
         r = self.MRD(x,train=train)
         p = self.MPD(x,train=train)
-        s = self.MSD(x,train=train)
-        return r + p + s
+        #s = self.MSD(x,train=train)
+        return r + p 

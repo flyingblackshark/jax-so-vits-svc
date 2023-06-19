@@ -29,8 +29,8 @@ class DiscriminatorR(nn.Module):
        
         x = self.spectrogram(x)
         for l,n in zip(self.convs,self.norms):
-            x = l(x.transpose(0,1,3,2)).transpose(0,1,3,2)
-            x = n(x.transpose(0,1,3,2),use_running_average=not train).transpose(0,1,3,2)
+            x = l(x)
+            x = n(x,use_running_average=not train)
             x = commons.snake(x)
             #x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
