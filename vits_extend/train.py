@@ -99,7 +99,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
             #spkc_criterion = 
-            spk_loss = optax.cosine_similarity(spk, spk_preds, jnp.ones(spk_preds.shape[0]))
+            spk_loss = optax.cosine_similarity(spk, spk_preds).mean()
             #Multi-Resolution STFT Loss
             
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))

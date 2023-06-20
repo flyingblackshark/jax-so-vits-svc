@@ -10,18 +10,30 @@ import jax
 from jax import random
 import numpy as np
 import optax
-@jax.custom_jvp
+from jax import custom_vjp
+# @jax.custom_jvp
+# def gradient_reversal(x):
+#   return x
+
+# @gradient_reversal.defjvp
+# def f_jvp(primals,tangents):
+#     x = primals
+#     x_dot = tangents
+#     primal_out = gradient_reversal(x)
+#     tangent_out = -1 * x_dot * x
+#     return primal_out, tangent_out
+@jax.custom_vjp
 def gradient_reversal(x):
   return x
 
-@gradient_reversal.defjvp
-def f_jvp(primals,tangents):
-    x = primals
-    x_dot = tangents
-    primal_out = gradient_reversal(x)
-    tangent_out = -1 * x_dot
-    return primal_out, tangent_out
+def f_fwd(x):
+  return gradient_reversal(x), (x)
 
+def f_bwd(res,g):
+  x = res
+  return (g * jnp.ones_like(x) * -1)
+
+gradient_reversal.defvjp(f_fwd, f_bwd)
 
 # class GradientReversal(nn.Module):
 #     ''' Gradient Reversal Layer
