@@ -13,7 +13,7 @@ import optax
 from vits import attentions
 from vits import commons
 from vits import modules
-from vits.modules_grl import SpeakerClassifier
+#from vits.modules_grl import SpeakerClassifier
 from vits.utils import f0_to_coarse
 from vits_decoder.generator import Generator
 
@@ -183,6 +183,8 @@ class SynthesizerTrn(nn.Module):
         # SNAC to flow
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True,train=train)
+        jax.debug.print("logdet_f {}",logdet_f[0])
+        jax.debug.print("logdet_r {}",logdet_r[0])
         # speaker
         #spk_preds = self.speaker_classifier(x)
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
