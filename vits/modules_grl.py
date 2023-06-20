@@ -17,8 +17,9 @@ def gradient_reversal(x):
 @gradient_reversal.defjvp
 def f_jvp(primals,tangents):
     x = primals
+    x_dot = tangents
     primal_out = gradient_reversal(x)
-    tangent_out = -1
+    tangent_out = -1 * x_dot
     return primal_out, tangent_out
 
 
