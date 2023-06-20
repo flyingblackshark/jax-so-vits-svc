@@ -140,10 +140,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
         loss_g = jax.lax.pmean(loss_g, axis_name='num_devices')
-        loss_m = jax.lax.pmean(mel_loss, axis_name='num_devices')
-        loss_s = jax.lax.pmean(stft_loss, axis_name='num_devices')
-        loss_k = jax.lax.pmean(loss_kl_f, axis_name='num_devices')
-        loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
+        loss_m = mel_loss.mean()
+        loss_s = stft_loss.mean()
+        loss_k = loss_kl_f.mean()
+        loss_r = loss_kl_r.mean()
 
         new_generator_state = generator_state.apply_gradients(
             grads=grads_g, batch_stats=mutables_g['batch_stats'])
