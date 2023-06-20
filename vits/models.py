@@ -169,7 +169,7 @@ class SynthesizerTrn(nn.Module):
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
         
         rng = random.PRNGKey(1234)
-        ppg = ppg + jax.random.normal(rng,ppg.shape)*0.01  # Perturbation
+        ppg = ppg + jax.random.normal(rng,ppg.shape)  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
