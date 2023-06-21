@@ -41,8 +41,9 @@ class DiscriminatorP(nn.Module):
   
         for l,n in zip(self.convs,self.norms):
             x = l(x)
-            x = n(x,use_running_average=not train)
             x = commons.snake(x)
+            x = n(x,use_running_average=not train)
+          
             #x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,1,3,2)).transpose(0,1,3,2)

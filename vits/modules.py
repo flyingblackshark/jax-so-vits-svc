@@ -123,9 +123,11 @@ class ResidualCouplingLayer(nn.Module):
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
         # SNAC Speaker-normalized Affine Coupling Layer
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1])
+        self.norm = nn.BatchNorm(scale_init=normal_init(0.01))
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)
+        speaker = self.norm(speaker.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x,  [self.half_channels] , axis=1)
         # x0 norm

@@ -30,13 +30,15 @@ class AMPBlock(nn.Module):
 
     def __call__(self, x,train = True):
         for c1, c2,n1,n2 in zip(self.convs1, self.convs2,self.norms1,self.norms2):
-            xt = commons.snake(x)
+           
             #xt = nn.leaky_relu(x, 0.1)
             xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
+            xt = commons.snake(x)
             xt = n1(xt.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
-            xt = commons.snake(xt)
+           
             #xt = nn.leaky_relu(xt, 0.1)
             xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
+            xt = commons.snake(xt)
             xt = n2(xt.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             x = xt + x
         return x

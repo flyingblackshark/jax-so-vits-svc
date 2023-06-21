@@ -113,11 +113,12 @@ class Generator(nn.Module):
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
         #x = self.conv_pre_norm(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         for i in range(self.num_upsamples):
-            x = commons.snake(x)
+           
             #x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
+            x = commons.snake(x)
+            x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
             x = x + x_source
