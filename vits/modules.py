@@ -54,12 +54,12 @@ class WN(nn.Module):
         self.in_layers = in_layers
         self.in_layer_norms = in_layer_norms
         self.res_skip_layer_norms = res_skip_layer_norms
-
+       
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
         #x = x.transpose(0,2,1)
         output = jnp.zeros_like(x)
         n_channels_tensor = [self.hidden_channels]
-
+        
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
             g = self.cond_layer_norm(g.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
@@ -123,11 +123,14 @@ class ResidualCouplingLayer(nn.Module):
             features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.))
         # SNAC Speaker-normalized Affine Coupling Layer
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1])
+        self.snac_norm =nn.BatchNorm()
+        self.norms1=nn.BatchNorm()
 
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)
-
+        x = self.norms1(x,use_running_average=not train)
+        speaker = self.snac_norm(speaker,use_running_average=not train)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x,  [self.half_channels] , axis=1)
         # x0 norm

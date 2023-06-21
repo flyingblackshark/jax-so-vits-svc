@@ -17,7 +17,7 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01))
         ]
-        self.norms1=[nn.BatchNorm() for i in range(3)]
+        self.norms1=[nn.BatchNorm(normal_init(0.01)) for i in range(3)]
 
 
         self.convs2 = [
@@ -25,7 +25,7 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01))
         ]
-        self.norms2=[nn.BatchNorm() for i in range(3)]
+        self.norms2=[nn.BatchNorm(normal_init(0.01)) for i in range(3)]
 
 
     def __call__(self, x,train = True):
