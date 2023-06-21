@@ -47,13 +47,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
         tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
-        fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
-        fake_pit = jnp.ones((hp.train.batch_size,400))
-        fake_spec = jnp.ones((hp.train.batch_size,513,400))
-        fake_spk = jnp.ones((hp.train.batch_size,256))
-        fake_spec_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
-        fake_ppg_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
-
+        # fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
+        # fake_pit = jnp.ones((hp.train.batch_size,400))
+        # fake_spec = jnp.ones((hp.train.batch_size,513,400))
+        # fake_spk = jnp.ones((hp.train.batch_size,256))
+        # fake_spec_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
+        # fake_ppg_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
+        (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,wav,wav_l) = next(iter(trainloader))
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
@@ -64,7 +64,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        fake_audio = jnp.ones((hp.train.batch_size,1,8000))
+        #fake_audio = jnp.ones((hp.train.batch_size,1,8000))
+        (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
@@ -231,15 +232,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
     key_generator = shard_prng_key(key_generator)
     key_discriminator = shard_prng_key(key_discriminator)
     
-    discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
-    
-    generator_state = create_generator_state(key_generator, SynthesizerTrn)
-
     init_epoch = 1
     step = 0
-   
-
-
     if rank == 0:
         pth_dir = os.path.join(hp.log.pth_dir, args.name)
         log_dir = os.path.join(hp.log.log_dir, args.name)
@@ -259,6 +253,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         valloader = create_dataloader_eval(hp)
     
     trainloader = create_dataloader_train(hp, args.num_gpus, rank)
+
+    discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
+    generator_state = create_generator_state(key_generator, SynthesizerTrn)
+
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     checkpoint_manager = orbax.checkpoint.CheckpointManager(
