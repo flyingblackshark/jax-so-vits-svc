@@ -16,14 +16,15 @@ class ScaleDiscriminator(nn.Module):
             nn.Conv( 1024, [41], 4, feature_group_count =256),
             nn.Conv( 1024, [5], 1),
         ]
-        self.norms = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)) for i in range(6)]
+        self.norms = [nn.BatchNorm() for i in range(6)]
         self.conv_post = nn.Conv( 1, [3], 1)
 
     def __call__(self, x,train=True):
         fmap = []
         for l,n in zip(self.convs,self.norms):
             x = l(x.transpose(0,2,1)).transpose(0,2,1)
-            x = commons.snake(x)
+            x = nn.leaky_relu(x, 0.1)
+            #x = commons.snake(x)
             x = n(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
             #x = nn.leaky_relu(x, 0.1)
         

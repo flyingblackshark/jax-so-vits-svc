@@ -40,7 +40,6 @@ class Generator(nn.Module):
         self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
         # pre conv
         self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1])
-        #self.conv_pre_norm=nn.BatchNorm(scale_init=normal_init(0.01))
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -117,7 +116,8 @@ class Generator(nn.Module):
             #x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x = commons.snake(x)
+            x = nn.leaky_relu(x, 0.1)
+            #x = commons.snake(x)
             x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
@@ -132,8 +132,8 @@ class Generator(nn.Module):
             x = xs / self.num_kernels
 
         # post conv
-        x = commons.snake(x)
-        #x = nn.leaky_relu(x)
+        #x = commons.snake(x)
+        x = nn.leaky_relu(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x

@@ -21,7 +21,7 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 3]),
         ]
 
-        self.norms=[nn.BatchNorm(scale_init=normal_init(0.01)) for i in range(5)]
+        self.norms=[nn.BatchNorm() for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3])
        
     def __call__(self, x,train=True):
@@ -30,7 +30,8 @@ class DiscriminatorR(nn.Module):
         x = self.spectrogram(x)
         for l,n in zip(self.convs,self.norms):
             x = l(x)
-            x = commons.snake(x)
+            x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
+            #x = commons.snake(x)
             x = n(x,use_running_average=not train)
             
             #x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
