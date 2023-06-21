@@ -66,6 +66,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = model_cls(hp=hp)
         #fake_audio = jnp.ones((hp.train.batch_size,1,8000))
         (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+        fake_audio = fake_audio[:,:,:8000]
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
