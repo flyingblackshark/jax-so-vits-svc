@@ -172,7 +172,7 @@ class Encoder(nn.Module):
                     window_size=self.window_size,
                 )
             )
-            norm_layers_1.append(nn.LayerNorm(scale_init=normal_init(0.01)))
+            norm_layers_1.append(nn.LayerNorm())
             ffn_layers.append(
                 FFN(
                     self.hidden_channels,
