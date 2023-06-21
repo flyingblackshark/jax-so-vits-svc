@@ -72,8 +72,6 @@ from jax import custom_vjp
 #             x = (B, embed_dim, len)
 #         '''
 #         # pass through classifier
-#         # temp = jax.grad(self.classifier)(x)
-#         # jax.debug.print("{}",temp)
 #         outputs = self.classifier(x.transpose(0,2,1)).transpose(0,2,1) # (B, nb_speakers)
 #         outputs = jnp.mean(outputs, axis=-1)
 #         return outputs

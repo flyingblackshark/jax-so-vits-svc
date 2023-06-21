@@ -53,7 +53,6 @@ class TacotronSTFT():
     def linear_spectrogram(self, y):
         #assert (torch.min(y.data) >= -1)
         #assert (torch.max(y.data) <= 1)
-        #jax.debug.print("{}",y.shape)
         y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
                                     mode='reflect')
         spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.hop_size, nperseg=self.win_size,return_onesided=True)    
