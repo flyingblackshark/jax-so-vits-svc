@@ -172,7 +172,7 @@ class Encoder(nn.Module):
                     window_size=self.window_size,
                 )
             )
-            norm_layers_1.append(nn.LayerNorm())
+            norm_layers_1.append(nn.LayerNorm(scale_init=normal_init(0.1)))
             ffn_layers.append(
                 FFN(
                     self.hidden_channels,
@@ -181,17 +181,16 @@ class Encoder(nn.Module):
                     p_dropout=self.p_dropout
                 )
             )
-            norm_layers_2.append(nn.LayerNorm(scale_init=normal_init(0.01)))
+            norm_layers_2.append(nn.LayerNorm(scale_init=normal_init(0.1)))
         self.attn_layers = attn_layers
         self.norm_layers_1 = norm_layers_1
         self.ffn_layers = ffn_layers
         self.norm_layers_2 = norm_layers_2
-        self.norm_layer_3 = nn.LayerNorm(scale_init=normal_init(0.01))
     #@nn.compact
     def __call__(self, x, x_mask,train=True):
         attn_mask = jnp.expand_dims(x_mask,2) * jnp.expand_dims(x_mask,-1)
         x = x * x_mask
-        x = self.norm_layer_3(x)
+        
         for i in range(self.n_layers):
             y = self.attn_layers[i](x, x, attn_mask,train=train)
             y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)

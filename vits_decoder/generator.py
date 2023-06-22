@@ -31,7 +31,6 @@ class SpeakerAdapter(nn.Module):
 
 class Generator(nn.Module):
     hp:tuple
-    #train:bool=True
     # this is our main BigVGAN model. Applies anti-aliased periodic activation for resblocks.
     def setup(self):
         self.num_kernels = len(self.hp.gen.resblock_kernel_sizes)
@@ -56,9 +55,9 @@ class Generator(nn.Module):
                     nn.ConvTranspose(
                     features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                     kernel_size=[k],
-                    strides=[u],kernel_init=normal_init(0.01))
+                    strides=[u],kernel_init=normal_init(0.1))
                 )
-            ups_norms.append(nn.BatchNorm(scale_init=normal_init(0.01)))
+            ups_norms.append(nn.BatchNorm(scale_init=normal_init(0.1)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):

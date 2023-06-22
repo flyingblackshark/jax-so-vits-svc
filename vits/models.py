@@ -113,16 +113,12 @@ class PosteriorEncoder(nn.Module):
             gin_channels=self.gin_channels,
         )
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1])
-        self.norm1 =nn.LayerNorm()
-        self.norm2 =nn.LayerNorm()
 
     def __call__(self, x, x_lengths,g=None,train=True):
         rng = random.PRNGKey(1234)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
         x = self.enc(x, x_mask, g=g,train=train)
-        x = self.norm2(x.transpose(0,2,1)).transpose(0,2,1)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,[ self.out_channels], axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask

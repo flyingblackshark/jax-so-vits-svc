@@ -24,7 +24,7 @@ class DiscriminatorP(nn.Module):
             nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1)),
             nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1),
         ]
-        self.norms=[nn.BatchNorm() for i in range(5)]
+        self.norms=[nn.BatchNorm(scale_init=normal_init(0.1)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1)
     
 
