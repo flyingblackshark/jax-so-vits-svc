@@ -17,7 +17,7 @@ class AMPBlock(nn.Module):
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1]),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2])
         ]
-        self.norms1=[nn.LayerNorm() for i in range(3)]
+        self.norms1=[nn.GroupNorm() for i in range(3)]
 
 
         self.convs2 = [
