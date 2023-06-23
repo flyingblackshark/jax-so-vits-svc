@@ -28,6 +28,7 @@ from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
 import torch
 from flax.training import orbax_utils
+from vits.losses import l1_loss
 PRNGKey = jnp.ndarray
 
 class TrainState(train_state.TrainState):
@@ -99,7 +100,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
-            mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
+            
+           # mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
+            mel_loss = l1_loss(mel_fake, mel_real) * hp.train.c_mel
             #spkc_criterion = 
             #spk_loss = optax.cosine_similarity(spk, spk_preds).mean()
             #Multi-Resolution STFT Loss
@@ -194,7 +197,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                                  ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
-        mel_loss_val = jnp.mean(optax.l2_loss(mel_fake, mel_real))
+        mel_loss_val = l1_loss(mel_fake, mel_real)#jnp.mean(optax.l2_loss(mel_fake, mel_real))
 
         #f idx == 0:
         spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))

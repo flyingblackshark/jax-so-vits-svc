@@ -12,7 +12,7 @@ from flax import linen as nn
 from vits import commons
 import jax
 import optax
-
+from vits.losses import l1_loss
 def stft(x, fft_size, hop_size, win_length):
     """Perform STFT and convert to magnitude spectrogram.
     Args:
@@ -65,7 +65,7 @@ class LogSTFTMagnitudeLoss():
             Tensor: Log STFT magnitude loss value.
         """
         #return optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag))
-        return jnp.mean(optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag)))
+        return l1_loss(jnp.log(y_mag), jnp.log(x_mag))
 
 
 class STFTLoss():
