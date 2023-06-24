@@ -21,20 +21,15 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 3]),
         ]
 
-        self.norms=[nn.BatchNorm(scale_init=normal_init(0.1)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3])
        
     def __call__(self, x,train=True):
         fmap = []
        
         x = self.spectrogram(x)
-        for l,n in zip(self.convs,self.norms):
+        for l in self.convs:
             x = l(x)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
-            #x = commons.snake(x)
-            x = n(x,use_running_average=not train)
-            
-            #x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
         x = self.conv_post(x)
 

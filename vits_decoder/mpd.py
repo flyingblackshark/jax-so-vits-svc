@@ -24,7 +24,6 @@ class DiscriminatorP(nn.Module):
             nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1)),
             nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1),
         ]
-        self.norms=[nn.BatchNorm(scale_init=normal_init(0.1)) for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1)
     
 
@@ -39,13 +38,9 @@ class DiscriminatorP(nn.Module):
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
   
-        for l,n in zip(self.convs,self.norms):
+        for l in self.convs:
             x = l(x)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
-            #x = commons.snake(x)
-            x = n(x,use_running_average=not train)
-          
-            #x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x)
         fmap.append(x)

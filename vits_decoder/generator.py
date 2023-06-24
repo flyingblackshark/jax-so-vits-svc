@@ -47,7 +47,6 @@ class Generator(nn.Module):
         noise_convs = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
         ups = []
-        ups_norms = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
@@ -57,7 +56,6 @@ class Generator(nn.Module):
                     kernel_size=[k],
                     strides=[u],kernel_init=normal_init(0.1))
                 )
-            ups_norms.append(nn.BatchNorm(scale_init=normal_init(0.1)))
             
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -87,7 +85,6 @@ class Generator(nn.Module):
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False)
         # weight initialization
        
-        self.ups_norms = ups_norms
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
@@ -107,16 +104,11 @@ class Generator(nn.Module):
         
         har_source = self.m_source(f0)
         har_source = har_source.transpose(0,2,1)
-        #x = x.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
-        #x = self.conv_pre_norm(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         for i in range(self.num_upsamples):
-           
-            #x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
             x = nn.leaky_relu(x, 0.1)
-            #x = commons.snake(x)
             x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
@@ -131,7 +123,6 @@ class Generator(nn.Module):
             x = xs / self.num_kernels
 
         # post conv
-        #x = commons.snake(x)
         x = nn.leaky_relu(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
