@@ -47,7 +47,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        #tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
         # fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
         # fake_pit = jnp.ones((hp.train.batch_size,400))
         # fake_spec = jnp.ones((hp.train.batch_size,513,400))
@@ -71,7 +72,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        #tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
+        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
         variables = model.init(rng, fake_audio)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
