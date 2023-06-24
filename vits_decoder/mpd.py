@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
-from vits import commons
 class DiscriminatorP(nn.Module):
     hp:tuple
     period:int

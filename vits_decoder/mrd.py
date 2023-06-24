@@ -41,7 +41,7 @@ class DiscriminatorR(nn.Module):
     def spectrogram(self, x):
         n_fft, hop_length, win_length = self.resolution
         x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
-        x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=hop_length, nperseg=win_length) #[B, F, TT, 2]
+        x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length) #[B, F, TT, 2]
         mag = jnp.clip(a=jnp.abs(x[2]),a_min=(1e-9))
         return mag
 

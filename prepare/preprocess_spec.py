@@ -1,25 +1,29 @@
 import os
-import torch
+#import torch
 import argparse
 
 from vits import spectrogram
 from vits import utils
 from omegaconf import OmegaConf
-
+import jax
+import numpy as np
+import jax.numpy as jnp
+import flax.linen as nn
 
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)
     assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
     audio_norm = audio / hps.max_wav_value
-    audio_norm = audio_norm.unsqueeze(0)
+    audio_norm = jnp.asarray(audio_norm)
+    audio_norm = jnp.expand_dims(audio_norm,axis=0)
     n_fft = hps.filter_length
     sampling_rate = hps.sampling_rate
     hop_size = hps.hop_length
     win_size = hps.win_length
     spec = spectrogram.spectrogram_torch(
         audio_norm, n_fft, sampling_rate, hop_size, win_size, center=False)
-    spec = torch.squeeze(spec, 0)
-    torch.save(spec, specname)
+    spec = jnp.squeeze(spec, 0)
+    jnp.save(specname,spec)
 
 
 if __name__ == "__main__":

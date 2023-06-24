@@ -75,7 +75,8 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         use = item[5]
 
         wav = torch.FloatTensor(self.read_wav(wav))
-        spe = torch.load(spe)
+        #spe = torch.load(spe)
+        spe = jnp.load(spe)
 
         pit = np.load(pit)
         ppg = np.load(ppg)
@@ -127,17 +128,16 @@ class TextAudioSpeakerCollate:
         # pit: [len]
         # spk: [256]
         _, ids_sorted_decreasing = torch.sort(
-            torch.LongTensor([x[0].size(1) for x in batch]), dim=0, descending=True
+            torch.LongTensor([x[0].shape[1] for x in batch]), dim=0, descending=True
         )
 
         max_spe_len = max([x[0].shape[1] for x in batch])
         max_wav_len = max([x[1].shape[1] for x in batch])
         spe_lengths = torch.LongTensor(len(batch))
         wav_lengths = torch.LongTensor(len(batch))
-        spe_padded = torch.FloatTensor(
-            len(batch), batch[0][0].shape[0], max_spe_len)
-        wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
-        spe_padded.zero_()
+        spe_padded = jnp.zeros((len(batch), batch[0][0].shape[0], max_spe_len))
+        wav_padded = torch.FloatTensor(len(batch), 1,max_wav_len)
+        #spe_padded.zero_()
         wav_padded.zero_()
 
         max_ppg_len = max([x[2].shape[0] for x in batch])
@@ -153,7 +153,7 @@ class TextAudioSpeakerCollate:
             row = batch[ids_sorted_decreasing[i]]
 
             spe = row[0]
-            spe_padded[i, :, : spe.shape[1]] = spe
+            spe_padded=spe_padded.at[i, :, : spe.shape[1]].set(spe)
             spe_lengths[i] = spe.shape[1]
 
             wav = row[1]
@@ -184,14 +184,14 @@ class TextAudioSpeakerCollate:
         # spe_lengths = spe_lengths.numpy()
         # wav_padded = wav_padded.numpy()
         # wav_lengths = wav_lengths.numpy()
-        ppg_lengths = np.asarray(ppg_lengths,dtype=np.int32)
-        pit_padded = np.asarray(pit_padded,dtype=np.float32)
-        ppg_padded = np.asarray(ppg_padded,dtype=np.float32)
-        spk = np.asarray(spk,dtype=np.float32)
-        spe_padded = np.asarray(spe_padded,dtype=np.float32)
-        spe_lengths = np.asarray(spe_lengths,dtype=np.int32)
-        wav_padded = np.asarray(wav_padded,dtype=np.float32)
-        wav_lengths = np.asarray(wav_lengths,dtype=np.int32)
+        ppg_lengths = jnp.asarray(np.asarray(ppg_lengths,dtype=np.int32))
+        pit_padded = jnp.asarray(np.asarray(pit_padded,dtype=np.float32))
+        ppg_padded = jnp.asarray(np.asarray(ppg_padded,dtype=np.float32))
+        spk = jnp.asarray(np.asarray(spk,dtype=np.float32))
+        spe_padded = spe_padded
+        spe_lengths = jnp.asarray(np.asarray(spe_lengths,dtype=np.int32))
+        wav_padded = jnp.asarray(np.asarray(wav_padded,dtype=np.float32))
+        wav_lengths = jnp.asarray(np.asarray(wav_lengths,dtype=np.int32))
         return (
             ppg_padded,
             ppg_lengths,

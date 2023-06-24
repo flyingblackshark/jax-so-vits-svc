@@ -109,7 +109,7 @@ class Generator(nn.Module):
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
             x = nn.leaky_relu(x, 0.1)
-            x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
+            #x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
             x = x + x_source

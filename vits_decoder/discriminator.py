@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 
 from .mpd import MultiPeriodDiscriminator
 from .mrd import MultiResolutionDiscriminator
-from .msd import ScaleDiscriminator
+#from .msd import ScaleDiscriminator
 
 class Discriminator(nn.Module):
     hp:tuple

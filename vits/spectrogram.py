@@ -36,44 +36,20 @@
 
 # mel_basis = {}
 # hann_window = {}
+import jax
+import jax.numpy as jnp
+import flax.linen as nn
 
+def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
+    if jnp.min(y) < -1.0:
+        print("min value is ", jnp.min(y))
+    if jnp.max(y) > 1.0:
+        print("max value is ", jnp.max(y))
 
-# def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
-#     if torch.min(y) < -1.0:
-#         print("min value is ", torch.min(y))
-#     if torch.max(y) > 1.0:
-#         print("max value is ", torch.max(y))
-
-#     global hann_window
-#     dtype_device = str(y.dtype) + "_" + str(y.device)
-#     wnsize_dtype_device = str(win_size) + "_" + dtype_device
-#     if wnsize_dtype_device not in hann_window:
-#         hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(
-#             dtype=y.dtype, device=y.device
-#         )
-
-#     y = torch.nn.functional.pad(
-#         y.unsqueeze(1),
-#         (int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2)),
-#         mode="reflect",
-#     )
-#     y = y.squeeze(1)
-
-#     spec = torch.stft(
-#         y,
-#         n_fft,
-#         hop_length=hop_size,
-#         win_length=win_size,
-#         window=hann_window[wnsize_dtype_device],
-#         center=center,
-#         pad_mode="reflect",
-#         normalized=False,
-#         onesided=True,
-#         return_complex=False,
-#     )
-
-#     spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
-#     return spec
+    y = jnp.pad(y,[(0,0),(int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2))], mode='reflect')
+    spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=False)    
+    spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
+    return spec
 
 
 # def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):
