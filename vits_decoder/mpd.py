@@ -38,10 +38,10 @@ class DiscriminatorP(nn.Module):
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
   
         for l in self.convs:
-            x = l(x)
+            x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
-        x = self.conv_post(x)
+        x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
         return fmap, x

@@ -27,11 +27,13 @@ class DiscriminatorR(nn.Module):
         fmap = []
        
         x = self.spectrogram(x)
+        #x = x.squeeze(1)
+        #x = jnp.expand_dims(x,-1)
         for l in self.convs:
-            x = l(x)
+            x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
-        x = self.conv_post(x)
+        x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
 
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])

@@ -90,9 +90,9 @@ class Generator(nn.Module):
         self.resblocks = resblocks
 
     def __call__(self, spk, x, f0,train=True):
-        rng = jax.random.PRNGKey(1234)
+        #rng = jax.random.PRNGKey(1234)
         # Perturbation
-        x = x + jax.random.normal(rng,x.shape)
+        #x = x + jax.random.normal(rng,x.shape)
         # adapter
         x = self.adapter(x, spk)
         # nsf
