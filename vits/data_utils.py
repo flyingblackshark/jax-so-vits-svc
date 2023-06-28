@@ -75,14 +75,14 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         use = item[5]
 
         wav = torch.FloatTensor(self.read_wav(wav))
-        #spe = torch.load(spe)
-        spe = jnp.load(spe)
+        spe = np.load(spe)
+        #spe = jnp.load(spe)
 
         pit = np.load(pit)
         ppg = np.load(ppg)
         ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
         spk = np.load(spk)
-
+        spe = torch.FloatTensor(spe)
         pit = torch.FloatTensor(pit)
         ppg = torch.FloatTensor(ppg)
         spk = torch.FloatTensor(spk)
@@ -135,9 +135,10 @@ class TextAudioSpeakerCollate:
         max_wav_len = max([x[1].shape[1] for x in batch])
         spe_lengths = torch.LongTensor(len(batch))
         wav_lengths = torch.LongTensor(len(batch))
-        spe_padded = jnp.zeros((len(batch), batch[0][0].shape[0], max_spe_len))
+        spe_padded = torch.FloatTensor(
+            len(batch), batch[0][0].size(0), max_spe_len)
         wav_padded = torch.FloatTensor(len(batch), 1,max_wav_len)
-        #spe_padded.zero_()
+        spe_padded.zero_()
         wav_padded.zero_()
 
         max_ppg_len = max([x[2].shape[0] for x in batch])
@@ -153,7 +154,7 @@ class TextAudioSpeakerCollate:
             row = batch[ids_sorted_decreasing[i]]
 
             spe = row[0]
-            spe_padded=spe_padded.at[i, :, : spe.shape[1]].set(spe)
+            spe_padded[i, :, : spe.shape[1]] = spe
             spe_lengths[i] = spe.shape[1]
 
             wav = row[1]
@@ -188,7 +189,7 @@ class TextAudioSpeakerCollate:
         pit_padded = jnp.asarray(np.asarray(pit_padded,dtype=np.float32))
         ppg_padded = jnp.asarray(np.asarray(ppg_padded,dtype=np.float32))
         spk = jnp.asarray(np.asarray(spk,dtype=np.float32))
-        spe_padded = spe_padded
+        spe_padded = jnp.asarray(np.asarray(spe_padded,dtype=np.float32))
         spe_lengths = jnp.asarray(np.asarray(spe_lengths,dtype=np.int32))
         wav_padded = jnp.asarray(np.asarray(wav_padded,dtype=np.float32))
         wav_lengths = jnp.asarray(np.asarray(wav_lengths,dtype=np.int32))

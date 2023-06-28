@@ -1,7 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.nn.utils import weight_norm, spectral_norm
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
@@ -20,21 +16,20 @@ class DiscriminatorR(nn.Module):
             nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2]),
             nn.Conv(features=32, kernel_size=[3, 3]),
         ]
-
+        self.norms = [nn.BatchNorm() for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=[3, 3])
        
     def __call__(self, x,train=True):
         fmap = []
        
         x = self.spectrogram(x)
-        #x = x.squeeze(1)
-        #x = jnp.expand_dims(x,-1)
-        for l in self.convs:
+        x = jnp.expand_dims(x,1)
+        for l,n in zip(self.convs,self.norms):
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
+            x = n(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
 
@@ -43,8 +38,9 @@ class DiscriminatorR(nn.Module):
     def spectrogram(self, x):
         n_fft, hop_length, win_length = self.resolution
         x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
-        x = jax.scipy.signal.stft(x, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length) #[B, F, TT, 2]
-        mag = jnp.clip(a=jnp.abs(x[2]),a_min=(1e-9))
+        x = x.squeeze(1)
+        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length) #[B, F, TT, 2]
+        mag = jnp.abs(x[2])
         return mag
 
 

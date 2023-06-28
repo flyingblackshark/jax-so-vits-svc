@@ -36,20 +36,7 @@
 
 # mel_basis = {}
 # hann_window = {}
-import jax
-import jax.numpy as jnp
-import flax.linen as nn
 
-def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
-    if jnp.min(y) < -1.0:
-        print("min value is ", jnp.min(y))
-    if jnp.max(y) > 1.0:
-        print("max value is ", jnp.max(y))
-
-    y = jnp.pad(y,[(0,0),(int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2))], mode='reflect')
-    spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=False)    
-    spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
-    return spec
 
 
 # def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):

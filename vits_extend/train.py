@@ -24,15 +24,15 @@ import jax.numpy as jnp
 import orbax.checkpoint
 from functools import partial
 from typing import Any, Tuple
-from flax.training.train_state import TrainState
+from flax.training import train_state
 from flax.training.common_utils import shard, shard_prng_key
 import torch
 from flax.training import orbax_utils
-from vits.losses import l1_loss
+
 PRNGKey = jnp.ndarray
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: Any
+class TrainState(train_state.TrainState):
+    batch_stats: Any
 
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
@@ -47,37 +47,28 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        #tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
-        # fake_ppg = jnp.ones((hp.train.batch_size,400,1280))
-        # fake_pit = jnp.ones((hp.train.batch_size,400))
-        # fake_spec = jnp.ones((hp.train.batch_size,513,400))
-        # fake_spk = jnp.ones((hp.train.batch_size,256))
-        # fake_spec_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
-        # fake_ppg_l = jnp.asarray(np.asarray([400 for i in range(hp.train.batch_size)]))
         (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,wav,wav_l) = next(iter(trainloader))
         variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])#,batch_stats=variables['batch_stats'])
+            params=variables['params'],batch_stats=variables['batch_stats'])
         
         return state
     @partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        #fake_audio = jnp.ones((hp.train.batch_size,1,8000))
         (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
         fake_audio = fake_audio[:,:,:8000]
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        #tx = optax.adamw(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1], eps=hp.train.eps)
         tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
         variables = model.init(rng, fake_audio)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])#, batch_stats=variables['batch_stats'])
+            params=variables['params'], batch_stats=variables['batch_stats'])
         
         return state
     @partial(jax.pmap, axis_name='num_devices')
@@ -96,35 +87,32 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},#,'batch_stats': generator_state.batch_stats},     
-                ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': jax.random.PRNGKey(1234)})#,mutable=['batch_stats'])
+            (fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)),mutables = generator_state.apply_fn(
+                {'params': params,'batch_stats': generator_state.batch_stats},     
+                ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': jax.random.PRNGKey(1234)},mutable=['batch_stats'])
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
-           # mel_loss = jnp.mean(optax.l2_loss(mel_fake, mel_real)) * hp.train.c_mel
-            mel_loss = l1_loss(mel_fake, mel_real) * hp.train.c_mel
-            #spkc_criterion = 
-            #spk_loss = optax.cosine_similarity(spk, spk_preds).mean()
+            mel_loss = jnp.mean(optax.huber_loss(mel_fake, mel_real)) * hp.train.c_mel
             #Multi-Resolution STFT Loss
             
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss 
-            disc_fake = discriminator_state.apply_fn(
-            {'params': discriminator_state.params},#,'batch_stats': discriminator_state.batch_stats},
-            fake_audio)#, mutable=['batch_stats'])
+            disc_fake,_ = discriminator_state.apply_fn(
+            {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
+            fake_audio, mutable=['batch_stats'])
             score_loss = 0.0
             for (_, score_fake) in disc_fake:
                 score_loss += jnp.mean(jnp.square(score_fake - 1.0))
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
-            disc_real= discriminator_state.apply_fn(
-            {'params': discriminator_state.params},#,'batch_stats': discriminator_state.batch_stats},
-            audio)#, mutable=['batch_stats'])
+            disc_real,_= discriminator_state.apply_fn(
+            {'params': discriminator_state.params,'batch_stats': discriminator_state.batch_stats},
+            audio, mutable=['batch_stats'])
 
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
@@ -139,10 +127,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Loss
             loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5# + spk_loss * 2
 
-            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
+            return loss_g, (mutables,fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(mutables_g,fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -153,27 +141,27 @@ def train(rank, args, chkpt_path, hp, hp_str):
         loss_r = loss_kl_r.mean()
 
         new_generator_state = generator_state.apply_gradients(
-            grads=grads_g)#, batch_stats=mutables_g['batch_stats'])
+            grads=grads_g, batch_stats=mutables_g['batch_stats'])
         
         def loss_fn(params):
-            disc_fake  = discriminator_state.apply_fn(
-                {'params': params},#,'batch_stats': discriminator_state.batch_stats},    
-             fake_audio_g)#, mutable=['batch_stats'])
-            disc_real  = discriminator_state.apply_fn(
-                {'params': params},#,'batch_stats':  mutables['batch_stats']},
-                audio_g)#,mutable=['batch_stats'])
+            disc_fake,mutables  = discriminator_state.apply_fn(
+                {'params': params,'batch_stats': discriminator_state.batch_stats},    
+             fake_audio_g, mutable=['batch_stats'])
+            disc_real,mutables  = discriminator_state.apply_fn(
+                {'params': params,'batch_stats':  mutables['batch_stats']},
+                audio_g,mutable=['batch_stats'])
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean(jnp.square(score_real - 1.0))
                 loss_d += jnp.mean(jnp.square(score_fake))
             loss_d = loss_d / len(disc_fake)
           
-            return loss_d#,mutables
+            return loss_d,mutables
         
         # Generate data with the Generator, critique it with the Discriminator.
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
 
-        loss_d, grads_d = grad_fn(discriminator_state.params)
+        (loss_d,mutables_d), grads_d = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
         grads_d = jax.lax.pmean(grads_d, axis_name='num_devices')
@@ -181,7 +169,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(
-        grads=grads_d)#, batch_stats=mutables_d['batch_stats'])
+        grads=grads_d, batch_stats=mutables_d['batch_stats'])
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     @partial(jax.pmap, axis_name='num_devices')         
     def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
@@ -195,11 +183,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
-        fake_audio = model.apply({'params': generator.params},#,'batch_stats': generator.batch_stats}, 
+        fake_audio = model.apply({'params': generator.params,'batch_stats': generator.batch_stats}, 
                                  ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
-        mel_loss_val = l1_loss(mel_fake, mel_real)#jnp.mean(optax.l2_loss(mel_fake, mel_real))
+        mel_loss_val = jnp.mean(optax.huber_loss(mel_fake, mel_real))
 
         #f idx == 0:
         spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
@@ -229,12 +217,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
         mel_loss = mel_loss / len(valloader.dataset)
         mel_loss = np.asarray(mel_loss)
-       # (audio,fake_audio,spec_fake,spec_real,idx) = res
        
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
-    key_combine,key_generator, key_discriminator, key = jax.random.split(key, 4)
+    key_generator, key_discriminator, key = jax.random.split(key, 3)
     key_generator = shard_prng_key(key_generator)
     key_discriminator = shard_prng_key(key_discriminator)
     
@@ -272,7 +259,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
         step = checkpoint_manager.latest_step()  # step = 4
         states=checkpoint_manager.restore(step,items=target)
         discriminator_state=states['model_d']
+        discriminator_state = flax.jax_utils.replicate(discriminator_state)
         generator_state=states['model_g']
+        generator_state = flax.jax_utils.replicate(generator_state)
 
     for epoch in range(init_epoch, hp.train.epochs):
 
@@ -309,6 +298,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
         if rank == 0 and epoch % hp.log.eval_interval == 0:
             validate(generator_state)
         if rank == 0 and epoch % hp.log.save_interval == 0:
+            generator_state = flax.jax_utils.unreplicate(generator_state)
+            discriminator_state = flax.jax_utils.unreplicate(discriminator_state)
             ckpt = {'model_g': generator_state, 'model_d': discriminator_state}
             save_args = orbax_utils.save_args_from_target(ckpt)
             checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})

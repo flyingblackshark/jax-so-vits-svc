@@ -168,9 +168,6 @@ class SynthesizerTrn(nn.Module):
         self.dec = Generator(hp=self.hp)
 
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
-        
-        #rng = random.PRNGKey(1234)
-        #ppg = ppg + jax.random.normal(rng,ppg.shape)  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
@@ -183,8 +180,6 @@ class SynthesizerTrn(nn.Module):
         # SNAC to flow
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True,train=train)
-        # speaker
-        #spk_preds = self.speaker_classifier(x)
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
 
     def infer(self, ppg, pit, spk, ppg_l):

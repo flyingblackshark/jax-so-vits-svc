@@ -1,7 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.nn.utils import weight_norm, spectral_norm
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
@@ -23,6 +19,7 @@ class DiscriminatorP(nn.Module):
             nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1)),
             nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1),
         ]
+        self.norms = [nn.BatchNorm() for i in range(5)]
         self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1)
     
 
@@ -37,8 +34,9 @@ class DiscriminatorP(nn.Module):
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
   
-        for l in self.convs:
+        for l,n in zip(self.convs,self.norms):
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
+            x = n(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)

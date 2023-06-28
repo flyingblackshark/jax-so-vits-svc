@@ -7,6 +7,7 @@ from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from vits import commons
+from .snake import snake
 class SpeakerAdapter(nn.Module):
     speaker_dim : int
     adapter_dim : int
@@ -15,10 +16,11 @@ class SpeakerAdapter(nn.Module):
         self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.))
         self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.))
 
+
     def __call__(self, x, speaker_embedding):
         x = x.transpose(0,2,1)
-        mean = jnp.mean(x,axis=2, keepdims=True)
-        var = jnp.mean(jnp.square(x - mean),axis=2, keepdims=True)
+        mean = x.mean(axis=-1, keepdims=True)
+        var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
         std = jnp.sqrt(var + self.epsilon)
         y = (x - mean) / std
         scale = self.W_scale(speaker_embedding)
@@ -36,9 +38,11 @@ class Generator(nn.Module):
         self.num_kernels = len(self.hp.gen.resblock_kernel_sizes)
         self.num_upsamples = len(self.hp.gen.upsample_rates)
         # speaker adaper, 256 should change by what speaker encoder you use
-        self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
+        #self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
+        adapter = []
         # pre conv
         self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1])
+        self.conv_pre_norm = nn.BatchNorm(axis=-1,scale_init=normal_init(0.01))
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -46,9 +50,12 @@ class Generator(nn.Module):
         self.m_source = SourceModuleHnNSF(sampling_rate=self.hp.data.sampling_rate)
         noise_convs = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
+        ups_norm = []
         ups = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
+            adapter.append(SpeakerAdapter(
+                256, self.hp.gen.upsample_initial_channel // (2 ** (i + 1))))
             # base
             ups.append(
                     nn.ConvTranspose(
@@ -56,7 +63,7 @@ class Generator(nn.Module):
                     kernel_size=[k],
                     strides=[u],kernel_init=normal_init(0.1))
                 )
-            
+            ups_norm.append(nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)))
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
                 stride_f0 = np.prod(self.hp.gen.upsample_rates[i + 1:])
@@ -84,32 +91,33 @@ class Generator(nn.Module):
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False)
         # weight initialization
-       
+        self.norms1 = nn.BatchNorm()
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
+        self.ups_norm = ups_norm
+        self.adapter = adapter
 
     def __call__(self, spk, x, f0,train=True):
-        #rng = jax.random.PRNGKey(1234)
-        # Perturbation
-        #x = x + jax.random.normal(rng,x.shape)
         # adapter
-        x = self.adapter(x, spk)
+        
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
-        
         f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
-        #f0 = self.f0_upsamp(f0).transpose(1, 2)
-        
         har_source = self.m_source(f0)
         har_source = har_source.transpose(0,2,1)
+        har_source = self.norms1(har_source.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
+        x = self.conv_pre_norm(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
+        x = x * nn.tanh(nn.softplus(x))
+
         for i in range(self.num_upsamples):
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x = nn.leaky_relu(x, 0.1)
-            #x = self.ups_norms[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
+            x = self.ups_norm[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
+
+            x = self.adapter[i](x, spk)
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)
             x = x + x_source
@@ -121,9 +129,8 @@ class Generator(nn.Module):
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x,train=train)
             x = xs / self.num_kernels
-
         # post conv
-        x = nn.leaky_relu(x)
+        x = snake(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x
