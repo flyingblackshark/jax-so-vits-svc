@@ -38,7 +38,7 @@ class TextEncoder(nn.Module):
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1])
-
+        self.norm1 = nn.BatchNorm()
     def __call__(self, x, x_lengths, f0,train=True):
         rng = random.PRNGKey(1234)
         x = x.transpose(0,2,1)  # [b, h, t]
@@ -46,6 +46,7 @@ class TextEncoder(nn.Module):
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
+        x = self.norm1(x,use_running_average=not train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,[self.out_channels], axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
@@ -112,6 +113,7 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels,
         )
+        self.norm1 = nn.BatchNorm()
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1])
 
     def __call__(self, x, x_lengths,g=None,train=True):
@@ -119,6 +121,7 @@ class PosteriorEncoder(nn.Module):
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = self.enc(x, x_mask, g=g,train=train)
+        x = self.norm1(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,[ self.out_channels], axis=1)
         z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask

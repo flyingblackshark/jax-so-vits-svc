@@ -54,7 +54,7 @@ def kl_loss(z_p, logs_q, m_p, logs_p, total_logdet, z_mask):
     kl += 0.5 * (jnp.exp(2.*logs_q)+jnp.square(z_p - m_p)) * jnp.exp(-2. * logs_p)
     kl = jnp.sum(kl * z_mask)
     # add total_logdet (Negative LL)
-    kl -= jnp.sum(total_logdet)
+    #kl -= jnp.sum(total_logdet)
     l = kl / jnp.sum(z_mask)
     return l
 

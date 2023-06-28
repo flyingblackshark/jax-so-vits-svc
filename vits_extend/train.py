@@ -298,9 +298,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
         if rank == 0 and epoch % hp.log.eval_interval == 0:
             validate(generator_state)
         if rank == 0 and epoch % hp.log.save_interval == 0:
-            generator_state = flax.jax_utils.unreplicate(generator_state)
-            discriminator_state = flax.jax_utils.unreplicate(discriminator_state)
-            ckpt = {'model_g': generator_state, 'model_d': discriminator_state}
+            generator_state_s = flax.jax_utils.unreplicate(generator_state)
+            discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
+            ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
             save_args = orbax_utils.save_args_from_target(ckpt)
             checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
 
