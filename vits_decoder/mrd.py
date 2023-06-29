@@ -39,7 +39,7 @@ class DiscriminatorR(nn.Module):
         n_fft, hop_length, win_length = self.resolution
         x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
         x = x.squeeze(1)
-        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length) #[B, F, TT, 2]
+        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,padded=False) #[B, F, TT, 2]
         mag = jnp.abs(x[2])
         return mag
 
