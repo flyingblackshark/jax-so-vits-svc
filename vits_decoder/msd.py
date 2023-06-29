@@ -15,7 +15,7 @@ class ScaleDiscriminator(nn.Module):
             nn.Conv( 1024, [41], 4, feature_group_count =256),
             nn.Conv( 1024, [5], 1),
         ]
-        self.norms = [nn.BatchNorm() for i in range(6)]
+        self.norms = [nn.BatchNorm(axis_name='num_devices') for i in range(6)]
         self.conv_post = nn.Conv( 1, [3], 1)
 
     def __call__(self, x,train=True):

@@ -18,13 +18,13 @@ class AMPBlock(nn.Module):
             nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01)),
             nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01))
         ]
-        self.norms1 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
+        self.norms1 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices') for i in range(3)]
         self.convs2 = [
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
             nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01))
         ]
-        self.norms2 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)) for i in range(3)]
+        self.norms2 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices') for i in range(3)]
         # total number of conv layers
         self.num_layers = len(self.convs1) + len(self.convs2)
     def __call__(self, x,train=True):

@@ -42,7 +42,7 @@ class Generator(nn.Module):
         adapter = []
         # pre conv
         self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1])
-        self.conv_pre_norm = nn.BatchNorm(axis=-1,scale_init=normal_init(0.01))
+        self.conv_pre_norm = nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices')
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -63,7 +63,7 @@ class Generator(nn.Module):
                     kernel_size=[k],
                     strides=[u],kernel_init=normal_init(0.1))
                 )
-            ups_norm.append(nn.BatchNorm(axis=-1,scale_init=normal_init(0.01)))
+            ups_norm.append(nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices'))
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
                 stride_f0 = np.prod(self.hp.gen.upsample_rates[i + 1:])
