@@ -25,7 +25,7 @@ class WN(nn.Module):
 
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],precision='high')
-            self.cond_layer_norm = nn.LayerNorm()
+            self.cond_layer_norm = nn.LayerNorm(scale_init=normal_init(0.01))
 
         in_layer_norms = []
         res_skip_layer_norms = []
@@ -38,7 +38,7 @@ class WN(nn.Module):
                 precision='high'
             )
             in_layers.append(in_layer)
-            in_layer_norms.append(nn.LayerNorm())
+            in_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
 
             # last one is not necessary
             if i < self.n_layers - 1:
@@ -48,11 +48,11 @@ class WN(nn.Module):
 
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],precision='high')
             res_skip_layers.append(res_skip_layer)
-            res_skip_layer_norms.append(nn.LayerNorm())
+            res_skip_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
 
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
-        self.norm1=nn.LayerNorm()
+       # self.norm1=nn.LayerNorm(scale_init=normal_init(0.01))
         self.in_layer_norms = in_layer_norms
         self.res_skip_layer_norms = res_skip_layer_norms
        
@@ -60,7 +60,7 @@ class WN(nn.Module):
         #x = x.transpose(0,2,1)
         output = jnp.zeros_like(x)
         n_channels_tensor = [self.hidden_channels]
-        x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
+        #x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
             g = self.cond_layer_norm(g.transpose(0,2,1)).transpose(0,2,1)
@@ -123,9 +123,6 @@ class ResidualCouplingLayer(nn.Module):
         self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),precision='high')
         # SNAC Speaker-normalized Affine Coupling Layer
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],precision='high')
-        # self.norm1 = nn.LayerNorm()
-        # self.norm2 = nn.LayerNorm()
-        # self.norm3 = nn.LayerNorm()
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)
@@ -136,9 +133,7 @@ class ResidualCouplingLayer(nn.Module):
         x0_norm = (x0 - speaker_m) * jnp.exp(-speaker_v) * x_mask
         h = self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1) * x_mask
         # don't use global condition
-        #h = self.norm3(h.transpose(0,2,1)).transpose(0,2,1)
         h = self.enc(h, x_mask,train=train)
-        #h = self.norm2(h.transpose(0,2,1)).transpose(0,2,1)
         stats = self.post(h.transpose(0,2,1)).transpose(0,2,1)* x_mask
         if not self.mean_only:
             m, logs = jnp.split(stats, [self.half_channels] * 2, 1)
