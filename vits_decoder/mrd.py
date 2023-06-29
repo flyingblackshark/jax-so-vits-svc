@@ -10,14 +10,15 @@ class DiscriminatorR(nn.Module):
         self.LRELU_SLOPE = self.hp.mpd.lReLU_slope
 
         self.convs = [
-            nn.Conv(features=32, kernel_size=[3, 9]),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2]),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2]),
-            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2]),
-            nn.Conv(features=32, kernel_size=[3, 3]),
+            nn.Conv(features=32, kernel_size=[3, 9],precision='high'),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2],precision='high'),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2],precision='high'),
+            nn.Conv(features=32, kernel_size=[3, 9], strides=[1, 2],precision='high'),
+            nn.Conv(features=32, kernel_size=[3, 3],precision='high'),
         ]
         self.norms = [nn.BatchNorm(axis_name='num_devices') for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=[3, 3])
+        self.conv_post = nn.Conv(features=1, kernel_size=[3, 3],precision='high')
+        self.conv_post_norm = nn.BatchNorm(axis_name='num_devices')
        
     def __call__(self, x,train=True):
         fmap = []
@@ -30,6 +31,7 @@ class DiscriminatorR(nn.Module):
             x = nn.leaky_relu(x, self.hp.mpd.lReLU_slope)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
+        x = self.conv_post_norm(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
 

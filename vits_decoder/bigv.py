@@ -14,15 +14,15 @@ class AMPBlock(nn.Module):
     def setup(self):
        
         self.convs1 =[
-            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=normal_init(0.01)),
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01)),
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01))
+            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=normal_init(0.01),precision='high'),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01),precision='high'),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01),precision='high')
         ]
         self.norms1 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices') for i in range(3)]
         self.convs2 = [
-            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
-            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
-            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01))
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),precision='high'),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),precision='high'),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),precision='high')
         ]
         self.norms2 = [nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices') for i in range(3)]
         # total number of conv layers

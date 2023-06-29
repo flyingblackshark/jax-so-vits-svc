@@ -13,14 +13,15 @@ class DiscriminatorP(nn.Module):
         stride = self.hp.mpd.stride
 
         self.convs = [
-            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1)),
-            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1)),
-            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1)),
-            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1)),
-            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1),
+            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
+            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1),precision='high'),
+            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
+            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
+            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1,precision='high'),
         ]
         self.norms = [nn.BatchNorm(axis_name='num_devices') for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1)
+        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1,precision='high')
+        self.conv_post_norm = nn.BatchNorm(axis_name='num_devices')
     
 
     def __call__(self, x,train=True):
@@ -40,6 +41,7 @@ class DiscriminatorP(nn.Module):
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
+        x = self.conv_post_norm(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
         fmap.append(x)
         x = jnp.reshape(x, [x.shape[0],-1])
         return fmap, x

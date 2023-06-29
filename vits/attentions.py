@@ -30,12 +30,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform())(x.transpose(0,2,1)).transpose(0,2,1)
-        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform())(c.transpose(0,2,1)).transpose(0,2,1)
-        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform())(c.transpose(0,2,1)).transpose(0,2,1)
+        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high')(x.transpose(0,2,1)).transpose(0,2,1)
+        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high')(c.transpose(0,2,1)).transpose(0,2,1)
+        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high')(c.transpose(0,2,1)).transpose(0,2,1)
         x, attn = self.attention(q, k, v,emb_rel_k,emb_rel_v,k_channels, mask=attn_mask,train=train)
 
-        x = nn.Conv(self.out_channels, [1])(x.transpose(0,2,1)).transpose(0,2,1)
+        x = nn.Conv(self.out_channels, [1],precision='high')(x.transpose(0,2,1)).transpose(0,2,1)
         return x
 
     def attention(self, query, key, value, emb_rel_k,emb_rel_v,k_channels,mask=None,train=True):
@@ -101,7 +101,6 @@ class MultiHeadAttention(nn.Module):
         if pad_length > 0:
             padded_relative_embeddings = jnp.pad(
                 relative_embeddings,[[0, 0], [pad_length, pad_length], [0, 0]]
-                #commons.convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
             )
         else:
             padded_relative_embeddings = relative_embeddings
@@ -172,7 +171,7 @@ class Encoder(nn.Module):
                     window_size=self.window_size,
                 )
             )
-            norm_layers_1.append(nn.LayerNorm(scale_init=normal_init(0.1)))
+            norm_layers_1.append(nn.LayerNorm())
             ffn_layers.append(
                 FFN(
                     self.hidden_channels,
@@ -181,7 +180,7 @@ class Encoder(nn.Module):
                     p_dropout=self.p_dropout
                 )
             )
-            norm_layers_2.append(nn.LayerNorm(scale_init=normal_init(0.1)))
+            norm_layers_2.append(nn.LayerNorm())
         self.attn_layers = attn_layers
         self.norm_layers_1 = norm_layers_1
         self.ffn_layers = ffn_layers
@@ -217,10 +216,9 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding)
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding)
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,precision='high')
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,precision='high')
         self.drop = nn.Dropout(self.p_dropout)
-
 
     def __call__(self, x, x_mask,train=True):
         x = self.conv_1((x * x_mask).transpose(0,2,1)).transpose(0,2,1)

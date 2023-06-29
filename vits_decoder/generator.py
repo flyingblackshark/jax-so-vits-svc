@@ -13,8 +13,8 @@ class SpeakerAdapter(nn.Module):
     adapter_dim : int
     epsilon : int = 1e-5
     def setup(self):
-        self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.))
-        self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.))
+        self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.),precision='high')
+        self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.),precision='high')
 
 
     def __call__(self, x, speaker_embedding):
@@ -41,8 +41,7 @@ class Generator(nn.Module):
         #self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
         adapter = []
         # pre conv
-        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1])
-        self.conv_pre_norm = nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices')
+        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1],precision='high')
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -61,7 +60,7 @@ class Generator(nn.Module):
                     nn.ConvTranspose(
                     features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                     kernel_size=[k],
-                    strides=[u],kernel_init=normal_init(0.1))
+                    strides=[u],kernel_init=normal_init(0.01),precision='high')
                 )
             ups_norm.append(nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices'))
             # nsf
@@ -72,13 +71,13 @@ class Generator(nn.Module):
                     nn.Conv(
                         features=self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         kernel_size=[stride_f0 * 2],
-                        strides=[stride_f0]
+                        strides=[stride_f0],precision='high'
                     )
                 )
             else:
                 noise_convs.append(
                     nn.Conv(features=self.hp.gen.upsample_initial_channel //
-                           (2 ** (i + 1)), kernel_size=[1])
+                           (2 ** (i + 1)), kernel_size=[1],precision='high')
                 )
 
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
@@ -109,7 +108,6 @@ class Generator(nn.Module):
         har_source = har_source.transpose(0,2,1)
         har_source = self.norms1(har_source.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
-        x = self.conv_pre_norm(x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         x = x * nn.tanh(nn.softplus(x))
 
         for i in range(self.num_upsamples):
