@@ -21,4 +21,4 @@ class Discriminator(nn.Module):
         r = self.MRD(x,train=train)
         p = self.MPD(x,train=train)
         s = self.MSD(x,train=train)
-        return r + p 
+        return r + p + s

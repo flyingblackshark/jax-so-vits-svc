@@ -2,6 +2,8 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
+
+from .weightnorm import WeightStandardizedConvTranspose
 from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
@@ -49,7 +51,6 @@ class Generator(nn.Module):
         self.m_source = SourceModuleHnNSF(sampling_rate=self.hp.data.sampling_rate)
         noise_convs = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
-        ups_norm = []
         ups = []
         for i, (u, k) in enumerate(zip(self.hp.gen.upsample_rates, self.hp.gen.upsample_kernel_sizes)):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
@@ -57,12 +58,12 @@ class Generator(nn.Module):
                 256, self.hp.gen.upsample_initial_channel // (2 ** (i + 1))))
             # base
             ups.append(
-                    nn.ConvTranspose(
-                    features= self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
-                    kernel_size=[k],
-                    strides=[u],kernel_init=normal_init(0.01),precision='high')
+                    WeightStandardizedConvTranspose(
+                        self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
+                        (k,),
+                        (u,),
+                        kernel_init=normal_init(0.01))
                 )
-            ups_norm.append(nn.BatchNorm(axis=-1,scale_init=normal_init(0.01),axis_name='num_devices'))
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
                 stride_f0 = np.prod(self.hp.gen.upsample_rates[i + 1:])
@@ -90,11 +91,9 @@ class Generator(nn.Module):
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False)
         # weight initialization
-        self.norms1 = nn.BatchNorm()
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
-        self.ups_norm = ups_norm
         self.adapter = adapter
 
     def __call__(self, spk, x, f0,train=True):
@@ -106,15 +105,12 @@ class Generator(nn.Module):
         f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
         har_source = self.m_source(f0)
         har_source = har_source.transpose(0,2,1)
-        har_source = self.norms1(har_source.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = x * nn.tanh(nn.softplus(x))
 
         for i in range(self.num_upsamples):
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x = self.ups_norm[i](x.transpose(0,2,1),use_running_average=not train).transpose(0,2,1)      
-
             x = self.adapter[i](x, spk)
             # nsf
             x_source = self.noise_convs[i](har_source.transpose(0,2,1)).transpose(0,2,1)

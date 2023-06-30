@@ -1,28 +1,33 @@
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+# from torch.nn.utils import weight_norm, spectral_norm
+import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
+from jax.nn.initializers import constant as constant_init
+from .snake import snake
+from .weightnorm import WeightStandardizedConv
 class DiscriminatorP(nn.Module):
     hp:tuple
-    period:int
+    period:tuple
     def setup(self):
-
         self.LRELU_SLOPE = self.hp.mpd.lReLU_slope
 
         kernel_size = self.hp.mpd.kernel_size
         stride = self.hp.mpd.stride
+      
 
         self.convs = [
-            nn.Conv(features=64, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
-            nn.Conv(features=128, kernel_size=(kernel_size, 1),strides= (stride, 1),precision='high'),
-            nn.Conv(features=256, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
-            nn.Conv(features=512, kernel_size=(kernel_size, 1), strides=(stride, 1),precision='high'),
-            nn.Conv(features=1024, kernel_size=(kernel_size, 1), strides=1,precision='high'),
+            WeightStandardizedConv(64, (kernel_size, 1), (stride, 1)),
+            WeightStandardizedConv( 128, (kernel_size, 1), (stride, 1)),
+            WeightStandardizedConv( 256, (kernel_size, 1), (stride, 1)),
+            WeightStandardizedConv( 512, (kernel_size, 1), (stride, 1)),
+            WeightStandardizedConv( 1024, (kernel_size, 1), 1),
         ]
-        self.norms = [nn.BatchNorm(axis_name='num_devices') for i in range(5)]
-        self.conv_post = nn.Conv(features=1, kernel_size=(3, 1), strides=1,precision='high')
-        self.conv_post_norm = nn.BatchNorm(axis_name='num_devices')
-    
+        self.conv_post = WeightStandardizedConv(1, (3, 1), 1)
 
     def __call__(self, x,train=True):
         fmap = []
@@ -31,19 +36,18 @@ class DiscriminatorP(nn.Module):
         b, c, t = x.shape
         if t % self.period != 0: # pad first
             n_pad = self.period - (t % self.period)
-            x = jnp.pad(x, [(0,0),(0, 0),(0,n_pad)], "reflect")
+            x = jnp.pad(x, [(0,0),(0,0),(0, n_pad)], "reflect")
             t = t + n_pad
         x = jnp.reshape(x,[b, c, t // self.period, self.period])
-  
-        for l,n in zip(self.convs,self.norms):
+
+        for l in self.convs:
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-            x = n(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
             x = nn.leaky_relu(x, self.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-        x = self.conv_post_norm(x.transpose(0,2,3,1),use_running_average=not train).transpose(0,3,1,2)
         fmap.append(x)
-        x = jnp.reshape(x, [x.shape[0],-1])
+        x = jnp.reshape(x,[x.shape[0],-1])
+
         return fmap, x
 
 
@@ -52,7 +56,6 @@ class MultiPeriodDiscriminator(nn.Module):
     def setup(self):
         self.discriminators = [DiscriminatorP(self.hp, period) for period in self.hp.mpd.periods]
         
-
     def __call__(self, x,train=True):
         ret = list()
         for disc in self.discriminators:

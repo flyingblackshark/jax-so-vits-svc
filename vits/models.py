@@ -38,8 +38,6 @@ class TextEncoder(nn.Module):
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='high')
-        # self.norm1 = nn.LayerNorm()
-        # self.norm2 = nn.LayerNorm()
     def __call__(self, x, x_lengths, f0,train=True):
         rng = random.PRNGKey(1234)
         x = x.transpose(0,2,1)  # [b, h, t]
@@ -115,8 +113,6 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels,
         )
-        #self.norm1 = nn.LayerNorm()
-        #self.norm2 = nn.LayerNorm()
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='high')
 
     def __call__(self, x, x_lengths,g=None,train=True):

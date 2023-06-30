@@ -6,9 +6,10 @@ from flax import linen as nn
 from vits import commons
 import jax
 
-
+from vits_decoder.weightnorm import WeightStandardizedConv
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
+
 class WN(nn.Module):
     hidden_channels:int
     kernel_size:int
@@ -24,21 +25,15 @@ class WN(nn.Module):
         #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
-            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],precision='high')
-            self.cond_layer_norm = nn.LayerNorm(scale_init=normal_init(0.01))
-
-        in_layer_norms = []
-        res_skip_layer_norms = []
+            self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            in_layer = nn.Conv(
+            in_layer = WeightStandardizedConv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
-                kernel_dilation=dilation,
-                precision='high'
+                kernel_dilation=dilation
             )
             in_layers.append(in_layer)
-            in_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
 
             # last one is not necessary
             if i < self.n_layers - 1:
@@ -46,28 +41,21 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],precision='high')
+            res_skip_layer = WeightStandardizedConv(features=res_skip_channels, kernel_size=[1])
             res_skip_layers.append(res_skip_layer)
-            res_skip_layer_norms.append(nn.LayerNorm(scale_init=normal_init(0.01)))
 
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
-       # self.norm1=nn.LayerNorm(scale_init=normal_init(0.01))
-        self.in_layer_norms = in_layer_norms
-        self.res_skip_layer_norms = res_skip_layer_norms
        
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
-        #x = x.transpose(0,2,1)
         output = jnp.zeros_like(x)
         n_channels_tensor = [self.hidden_channels]
-        #x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
+
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
-            g = self.cond_layer_norm(g.transpose(0,2,1)).transpose(0,2,1)
 
         for i in range(self.n_layers):
             x_in = self.in_layers[i](x.transpose(0,2,1)).transpose(0,2,1)
-            x_in = self.in_layer_norms[i](x_in.transpose(0,2,1)).transpose(0,2,1)
             if g is not None:
                 cond_offset = i * 2 * self.hidden_channels
                 g_l = g[:, cond_offset : cond_offset + 2 * self.hidden_channels,:]
@@ -78,7 +66,6 @@ class WN(nn.Module):
             #acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
-            res_skip_acts = self.res_skip_layer_norms[i](res_skip_acts.transpose(0,2,1)).transpose(0,2,1)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels,:]
                 x = (x + res_acts) * x_mask
@@ -126,7 +113,6 @@ class ResidualCouplingLayer(nn.Module):
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)
-        #speaker = self.norm1(speaker.transpose(0,2,1)).transpose(0,2,1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x,  [self.half_channels] , axis=1)
         # x0 norm
