@@ -6,7 +6,6 @@ import flax
 import jax
 from typing import Tuple
 from jax.nn.initializers import normal as normal_init
-from .snake import snake
 from .weightnorm import WeightStandardizedConv
 
 class AMPBlock(nn.Module):
@@ -29,9 +28,9 @@ class AMPBlock(nn.Module):
 
     def __call__(self, x,train=True):
         for c1, c2 in zip(self.convs1, self.convs2):
-            xt = snake(x)
+            xt = nn.leaky_relu(x,0.1)
             xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
-            xt = snake(xt)
+            xt = nn.leaky_relu(xt,0.1)
             xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
             x = xt + x
         return x
