@@ -80,7 +80,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                       ):
       
 
-        def loss_fn(params,rng):
+        def loss_fn(params,rng,ppg_i,pit_i,spec_i,spk_i,ppg_l_i,spec_l_i,audio_i):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
                     win_length=hp.data.win_length,
@@ -91,8 +91,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             dropout_key ,predict_key, rng = jax.random.split(rng, 3)
             fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},  ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
-            audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+                {'params': params},  ppg_i, pit_i, spec_i, spk_i, ppg_l_i, spec_l_i,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+            audio = commons.slice_segments(audio_i, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
@@ -130,7 +130,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params,rng)
+        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params,rng,ppg,pit,spec,spk,ppg_l,spec_l,audio_e)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -143,11 +143,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_generator_state = generator_state.apply_gradients(
             grads=grads_g)
         
-        def loss_fn(params):
+        def loss_fn(params,fake_audio_g_to_d,audio_g_to_d):
             disc_fake  = discriminator_state.apply_fn(
-                {'params': params},fake_audio_g)
+                {'params': params},fake_audio_g_to_d)
             disc_real  = discriminator_state.apply_fn(
-                {'params': params},audio_g)
+                {'params': params},audio_g_to_d)
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean(jnp.square(score_real - 1.0))
@@ -159,7 +159,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
 
-        loss_d, grads_d = grad_fn(discriminator_state.params)
+        loss_d, grads_d = grad_fn(discriminator_state.params,fake_audio_g,audio_g)
 
         # Average cross the devices.
         grads_d = jax.lax.pmean(grads_d, axis_name='num_devices')
