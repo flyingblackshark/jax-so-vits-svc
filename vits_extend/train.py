@@ -180,8 +180,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
         segment_size=hp.data.segment_size // hp.data.hop_length,
         hp=hp)
+        predict_key = jax.random.PRNGKey(1234)
         fake_audio = model.apply({'params': generator.params}, 
-                                 ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False)
+                                 ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False,rngs={'rnorms':predict_key})
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
         mel_loss_val = jnp.mean(optax.huber_loss(mel_fake, mel_real))
