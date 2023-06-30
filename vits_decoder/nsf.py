@@ -39,15 +39,16 @@ class SineGen(nn.Module):
         uv = uv * (f0 > self.voiced_threshold)
         return uv
 
-    def _f02sine(self, f0_values):
+    def _f02sine(self, f0_values,rng):
         """f0_values: (batchsize, length, dim)
         where dim indicates fundamental tone and overtones
         """
         # convert to F0 in rad. The interger part n can be ignored
         # because 2 * np.pi * n doesn't affect phase
         rad_values = (f0_values / self.sampling_rate) % 1
-        rng = jax.random.PRNGKey(1234)
+        #rng = jax.random.PRNGKey(1234)
         # initial phase noise (no noise for fundamental component)
+        uniform_key , rng = jax.random.split(rng,2)
         rand_ini = jax.random.uniform(rng,
            [f0_values.shape[0], f0_values.shape[2]]
         )
@@ -107,6 +108,7 @@ class SineGen(nn.Module):
         output sine_tensor: tensor(batchsize=1, length, dim)
         output uv: tensor(batchsize=1, length, 1)
         """
+        rng = self.make_rng('rnorms')
         f0_buf = jnp.zeros([f0.shape[0], f0.shape[1], self.dim])
         # fundamental component
         f0_buf=f0_buf.at[:, :, 0].set(f0[:, :, 0])
@@ -115,7 +117,7 @@ class SineGen(nn.Module):
             f0_buf=f0_buf.at[:, :, idx + 1].set(f0_buf[:, :, 0] * (idx + 2))
 
         # generate sine waveforms
-        sine_waves = self._f02sine(f0_buf) * self.sine_amp
+        sine_waves = self._f02sine(f0_buf,rng) * self.sine_amp
 
         # generate uv signal
         # uv = torch.ones(f0.shape)
@@ -126,8 +128,9 @@ class SineGen(nn.Module):
         #        std = self.sine_amp/3 -> max value ~ self.sine_amp
         # .       for voiced regions is self.noise_std
         noise_amp = uv * self.noise_std + (1 - uv) * self.sine_amp / 3
-        rng=jax.random.PRNGKey(1234)
-        noise = noise_amp * jax.random.normal(rng,sine_waves.shape)
+        #rng=jax.random.PRNGKey(1234)
+        normal_key , rng = jax.random.split(rng,2)
+        noise = noise_amp * jax.random.normal(normal_key,sine_waves.shape)
 
         # first: set the unvoiced part to 0 by uv
         # then: additive noise
@@ -154,7 +157,7 @@ class SourceModuleHnNSF(nn.Module):
            -0.1889, 0.1315, -0.1002, 0.0590,])
         self.merge_b=jnp.asarray([-0.2908])
 
-    def __call__(self, x):
+    def __call__(self, x,rng):
         """
         Sine_source = SourceModuleHnNSF(F0_sampled)
         F0_sampled (batchsize, length, 1)

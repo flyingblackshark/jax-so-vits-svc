@@ -96,14 +96,14 @@ class Generator(nn.Module):
         self.resblocks = resblocks
         self.adapter = adapter
 
-    def __call__(self, spk, x, f0,train=True):
+    def __call__(self, spk, x, f0,train=True,rng=None):
         # adapter
         
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
         f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
-        har_source = self.m_source(f0)
+        har_source = self.m_source(f0,rng)
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = x * nn.tanh(nn.softplus(x))

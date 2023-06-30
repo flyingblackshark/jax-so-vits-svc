@@ -15,33 +15,17 @@ def slice_pitch_segments(x, ids_str, segment_size=4):
     return ret
 
 
-def rand_slice_segments_with_pitch(x, pitch, x_lengths=None, segment_size=4):
+def rand_slice_segments_with_pitch(x, pitch, x_lengths=None, segment_size=4,rng=None):
     b, d, t = x.shape
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
-    rng=jax.random.PRNGKey(1234)
-    ids_str = (jax.random.uniform(rng,[b]) * ids_str_max).astype(jnp.int32)
+    uniform_key , rng = jax.random.split(rng,2)
+    ids_str = (jax.random.uniform(uniform_key,[b]) * ids_str_max).astype(jnp.int32)
     ret = slice_segments(x, ids_str, segment_size)
     ret_pitch = slice_pitch_segments(pitch, ids_str, segment_size)
     return ret, ret_pitch, ids_str
 
-
-def rand_spec_segments(x, x_lengths=None, segment_size=4):
-    b, d, t = x.size()
-    if x_lengths is None:
-        x_lengths = t
-    ids_str_max = x_lengths - segment_size
-    rng=jax.random.PRNGKey(1234)
-    ids_str = (jax.random.uniform(rng,[b]).to(device=x.device) * ids_str_max)
-    ret = slice_segments(x, ids_str, segment_size)
-    return ret, ids_str
-
-
-# def init_weights(m, mean=0.0, std=0.01):
-#     classname = m.__class__.__name__
-#     if classname.find("Conv") != -1:
-#         m.weight.data.normal_(mean, std)
 
 
 def get_padding(kernel_size, dilation=1):
@@ -54,27 +38,6 @@ def convert_pad_shape(pad_shape):
     return pad_shape
 
 
-# def kl_divergence(m_p, logs_p, m_q, logs_q):
-#     """KL(P||Q)"""
-#     kl = (logs_q - logs_p) - 0.5
-#     kl += (
-#         0.5 * (jnp.exp(2.0 * logs_p) + ((m_p - m_q) ** 2)) * jnp.exp(-2.0 * logs_q)
-#     )
-#     return kl
-
-
-def rand_gumbel(shape):
-    rng=jax.random.PRNGKey(1234)
-    """Sample from the Gumbel distribution, protect from overflows."""
-    uniform_samples = jax.random.uniform(rng,shape) * 0.99998 + 0.00001
-    return -jnp.log(-jnp.log(uniform_samples))
-
-
-def rand_gumbel_like(x):
-    g = rand_gumbel(x.size()).to(dtype=x.dtype, device=x.device)
-    return g
-
-
 def slice_segments(x, ids_str, segment_size=4):
     ret = jnp.zeros_like(x[:, :, :segment_size])
     for i in range(x.shape[0]):
@@ -85,13 +48,13 @@ def slice_segments(x, ids_str, segment_size=4):
     return ret
 
 
-def rand_slice_segments(x, x_lengths=None, segment_size=4):
+def rand_slice_segments(x, x_lengths=None, segment_size=4,rng=None):
     b, d, t = x.size()
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
-    rng=jax.random.PRNGKey(1234)
-    ids_str = (jax.random.uniform(rng,[b]) * ids_str_max)
+    uniform_key,rng = jax.random.split(rng,2)
+    ids_str = (jax.random.uniform(uniform_key,[b]) * ids_str_max)
     ret = slice_segments(x, ids_str, segment_size)
     return ret, ids_str
 
@@ -137,18 +100,6 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
     s_act = nn.sigmoid(in_act[:, n_channels_int:, :])
     acts = t_act * s_act
     return acts
-
-
-# def convert_pad_shape(pad_shape):
-#     l = pad_shape[::-1]
-#     pad_shape = [item for sublist in l for item in sublist]
-#     return pad_shape
-
-
-# def shift_1d(x):
-#     x = jnp.pad(x, convert_pad_shape([[0, 0], [0, 0], [1, 0]]))[:, :, :-1]
-#     return x
-
 
 def sequence_mask(length, max_length=None):
     if max_length is None:

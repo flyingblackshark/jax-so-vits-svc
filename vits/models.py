@@ -39,17 +39,16 @@ class TextEncoder(nn.Module):
             p_dropout=self.p_dropout,)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='high')
     def __call__(self, x, x_lengths, f0,train=True):
-        rng = random.PRNGKey(1234)
+        rng = self.make_rng('rnorms')
+        normal_key,rng = jax.random.split(rng,2)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
-        #x = self.norm2(x.transpose(0,2,1)).transpose(0,2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
-        #x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,[self.out_channels], axis=1)
-        z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
+        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask, x
 
 
@@ -116,15 +115,14 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='high')
 
     def __call__(self, x, x_lengths,g=None,train=True):
-        rng = random.PRNGKey(1234)
+        rng = self.make_rng('rnorms')
+        normal_key,rng = jax.random.split(rng,2)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        #x = self.norm2(x.transpose(0,2,1)).transpose(0,2,1)
         x = self.enc(x, x_mask, g=g,train=train)
-        #x = self.norm1(x.transpose(0,2,1)).transpose(0,2,1)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        m, logs = jnp.split(stats,[ self.out_channels], axis=1)
-        z = (m + jax.random.normal(rng,m.shape) * jnp.exp(logs)) * x_mask
+        m, logs = jnp.split(stats,[self.out_channels], axis=1)
+        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
 def l2_normalize(arr, axis, epsilon=1e-12):
     sq_arr = jnp.power(arr, 2)
@@ -171,14 +169,16 @@ class SynthesizerTrn(nn.Module):
         self.dec = Generator(hp=self.hp)
 
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
+        rng = self.make_rng('rnorms')
         g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
+        enc_p_key , enc_q_key , slice_key , rng = jax.random.split(rng,4)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
         z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
-            z_q, pit, spec_l, self.segment_size)
+            z_q, pit, spec_l, self.segment_size,rng=slice_key)
 
-        audio = self.dec(spk, z_slice, pit_slice,train=train)
+        audio = self.dec(spk, z_slice, pit_slice,train=train,rng=rng)
 
         # SNAC to flow
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
@@ -194,51 +194,51 @@ class SynthesizerTrn(nn.Module):
         return o
 
 
-class SynthesizerInfer(nn.Module):
-    def __init__(
-        self,
-        spec_channels,
-        segment_size,
-        hp
-    ):
-        super().__init__()
-        self.segment_size = segment_size
-        self.enc_p = TextEncoder(
-            hp.vits.ppg_dim,
-            hp.vits.inter_channels,
-            hp.vits.hidden_channels,
-            hp.vits.filter_channels,
-            2,
-            6,
-            3,
-            0.1,
-        )
-        self.flow = ResidualCouplingBlock(
-            hp.vits.inter_channels,
-            hp.vits.hidden_channels,
-            5,
-            1,
-            4,
-            gin_channels=hp.vits.spk_dim
-        )
-        self.dec = Generator(hp=hp)
+# class SynthesizerInfer(nn.Module):
+#     def __init__(
+#         self,
+#         spec_channels,
+#         segment_size,
+#         hp
+#     ):
+#         super().__init__()
+#         self.segment_size = segment_size
+#         self.enc_p = TextEncoder(
+#             hp.vits.ppg_dim,
+#             hp.vits.inter_channels,
+#             hp.vits.hidden_channels,
+#             hp.vits.filter_channels,
+#             2,
+#             6,
+#             3,
+#             0.1,
+#         )
+#         self.flow = ResidualCouplingBlock(
+#             hp.vits.inter_channels,
+#             hp.vits.hidden_channels,
+#             5,
+#             1,
+#             4,
+#             gin_channels=hp.vits.spk_dim
+#         )
+#         self.dec = Generator(hp=hp)
 
-    def remove_weight_norm(self):
-        self.flow.remove_weight_norm()
-        self.dec.remove_weight_norm()
+#     def remove_weight_norm(self):
+#         self.flow.remove_weight_norm()
+#         self.dec.remove_weight_norm()
 
-    def pitch2source(self, f0):
-        return self.dec.pitch2source(f0)
+#     def pitch2source(self, f0):
+#         return self.dec.pitch2source(f0)
 
-    def source2wav(self, source):
-        return self.dec.source2wav(source)
+#     def source2wav(self, source):
+#         return self.dec.source2wav(source)
 
-    def inference(self, ppg, pit, spk, ppg_l, source):
-        rng = random.PRNGKey(1234)
-        ppg = ppg + jax.random.normal(rng,ppg.shape) * 0.0001  # Perturbation
-        z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l, f0=f0_to_coarse(pit))
-        z_p = m_p + jax.random.normal(rng,m_p.shape) * jnp.exp(logs_p) * 0.7  
-        z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
-        o = self.dec.inference(spk, z * ppg_mask, source)
-        return o
+#     def inference(self, ppg, pit, spk, ppg_l, source):
+
+#         ppg = ppg + jax.random.normal(rng,ppg.shape) * 0.0001  # Perturbation
+#         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
+#             ppg, ppg_l, f0=f0_to_coarse(pit))
+#         z_p = m_p + jax.random.normal(rng,m_p.shape) * jnp.exp(logs_p) * 0.7  
+#         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
+#         o = self.dec.inference(spk, z * ppg_mask, source)
+#         return o

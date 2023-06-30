@@ -20,8 +20,8 @@ class WN(nn.Module):
 
     def setup(self):
         assert self.kernel_size % 2 == 1
-        in_layers = []#torch.nn.ModuleList()
-        res_skip_layers = []#torch.nn.ModuleList()
+        in_layers = []
+        res_skip_layers = []
         #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
@@ -131,10 +131,8 @@ class ResidualCouplingLayer(nn.Module):
             # x1 norm before affine xform
             x1_norm = (x1 - speaker_m) * jnp.exp(-speaker_v) * x_mask
             x1 = (m + x1_norm * jnp.exp(logs)) * x_mask
-            
             x = jnp.concatenate([x0, x1], 1)
             # speaker var to logdet
-
             logdet = jnp.sum(logs * x_mask, [1, 2]) - jnp.sum(
                 jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
             return x, logdet

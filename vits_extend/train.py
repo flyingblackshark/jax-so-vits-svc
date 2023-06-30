@@ -49,7 +49,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
                                                       staircase=False)
         tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
         (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,wav,wav_l) = next(iter(trainloader))
-        variables = model.init(rng, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
+        params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
+        init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
+        variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
             params=variables['params'])
@@ -74,11 +76,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
     @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,rng:PRNGKey
                       ):
       
 
-        def loss_fn(params):
+        def loss_fn(params,rng):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
                     win_length=hp.data.win_length,
@@ -87,8 +89,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+            dropout_key ,predict_key, rng = jax.random.split(rng, 3)
             fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},  ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': jax.random.PRNGKey(1234)})
+                {'params': params},  ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -127,7 +130,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params,rng)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -215,9 +218,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
-    key_generator, key_discriminator, key = jax.random.split(key, 3)
+    combine_step_key,key_generator, key_discriminator, key = jax.random.split(key, 4)
     key_generator = shard_prng_key(key_generator)
     key_discriminator = shard_prng_key(key_discriminator)
+    combine_step_key = shard_prng_key(combine_step_key)
     
     init_epoch = 1
     step = 0
@@ -275,7 +279,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             audio = shard(audio)
             audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=\
-            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
+            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng=combine_step_key)
 
 
 
