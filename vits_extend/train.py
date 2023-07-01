@@ -47,7 +47,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+        tx = optax.chain(
+            optax.clip_by_global_norm(1.0),
+            optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+            )
         (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,wav,wav_l) = next(iter(trainloader))
         params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
         init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
@@ -66,7 +69,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+        tx = optax.chain(
+            optax.clip_by_global_norm(1.0),
+            optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+            )
         variables = model.init(rng, fake_audio)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
