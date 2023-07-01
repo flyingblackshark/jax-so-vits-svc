@@ -92,7 +92,8 @@ class Generator(nn.Module):
         self.noise_convs = noise_convs
         self.resblocks = resblocks
 
-    def __call__(self, spk, x, f0,train=True,rng=None):
+    def __call__(self, spk, x, f0,train=True):
+        rng = self.make_rng('rnorms')
         # adapter
         x = self.adapter(x, spk)
         # nsf

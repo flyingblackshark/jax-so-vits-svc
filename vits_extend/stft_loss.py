@@ -27,7 +27,7 @@ def stft(x, fft_size, hop_size, win_length):
     x_stft = jax.scipy.signal.stft(x,fs=32000, nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length)
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.clip(a=jnp.abs(x_stft[2]),a_min=1e-4)
+    return jnp.clip(a=jnp.abs(x_stft[2]),a_min=1e-6)
 
 
 class SpectralConvergengeLoss():

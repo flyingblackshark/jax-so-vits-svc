@@ -19,7 +19,7 @@ def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
     pad_num = int((n_fft - hop_size) / 2)
     y = jnp.pad(y,[(0,0),(pad_num,pad_num)], mode='reflect')
     spec = jax.scipy.signal.stft(y,fs=32000, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=False)    
-    spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-4))
+    spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-6))
     return spec
 
 def compute_spec(hps, filename, specname):

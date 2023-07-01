@@ -124,11 +124,21 @@ class PosteriorEncoder(nn.Module):
         m, logs = jnp.split(stats,[self.out_channels], axis=1)
         z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
-def l2_normalize(arr, axis, epsilon=1e-12):
-    sq_arr = jnp.power(arr, 2)
-    square_sum = jnp.sum(sq_arr, axis=axis, keepdims=True)
-    max_weights = jnp.maximum(square_sum, epsilon)
-    return jnp.divide(arr, jnp.sqrt(max_weights))
+def l2norm(t, axis=1, eps=1e-12):
+    """Performs L2 normalization of inputs over specified axis.
+
+    Args:
+      t: jnp.ndarray of any shape
+      axis: the dimension to reduce, default -1
+      eps: small value to avoid division by zero. Default 1e-12
+    Returns:
+      normalized array of same shape as t
+
+
+    """
+    denom = jnp.clip(jnp.linalg.norm(t, ord=2, axis=axis, keepdims=True), eps)
+    out = t/denom
+    return (out)
 class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
@@ -170,15 +180,15 @@ class SynthesizerTrn(nn.Module):
 
     def __call__(self, ppg, pit, spec, spk, ppg_l, spec_l,train=True):
         rng = self.make_rng('rnorms')
-        g = jnp.expand_dims(self.emb_g(l2_normalize(spk,axis=1)),-1)
-        enc_p_key , enc_q_key , slice_key , rng = jax.random.split(rng,4)
+        g = jnp.expand_dims(self.emb_g(l2norm(spk,axis=1)),-1)
+        slice_key , rng = jax.random.split(rng,2)
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
         z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
             z_q, pit, spec_l, self.segment_size,rng=slice_key)
 
-        audio = self.dec(spk, z_slice, pit_slice,train=train,rng=rng)
+        audio = self.dec(spk, z_slice, pit_slice,train=train)
 
         # SNAC to flow
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
