@@ -57,7 +57,7 @@ class TacotronSTFT():
         spec = jax.scipy.signal.stft(y,fs=32000, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False)    
         #spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-3))
 
-        return spec
+        return spec[2]
 
     def mel_spectrogram(self, y):
         """Computes mel-spectrograms from a batch of waves
