@@ -21,8 +21,8 @@ def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
     #y = jnp.pad(y,[(0,0),(pad_num,pad_num)], mode='reflect')
     hann_win = scipy.signal.get_window('hann',n_fft)
     scale = np.sqrt(1.0/hann_win.sum()**2)
-    spec = jax.scipy.signal.stft(y,fs=32000, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=False,boundary="even")
-    spec = spec[2]/scale
+    spec = jax.scipy.signal.stft(y,fs=32000, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary="even")
+    spec = spec[2][:,:,1:]/scale
     real = jnp.real(spec)
     imag = jnp.imag(spec)
     spec = jnp.sqrt(real**2+imag**2+(1e-6))

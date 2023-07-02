@@ -40,8 +40,8 @@ class DiscriminatorR(nn.Module):
         x = x.squeeze(1)
         hann_win = scipy.signal.get_window('hann',n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
-        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,boundary="even") #[B, F, TT, 2]
-        mag = jnp.abs(x[2]/scale)
+        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,padded=True,boundary="even") #[B, F, TT, 2]
+        mag = jnp.abs(x[2][:,:,1:]/scale)
         return mag
 
 class MultiResolutionDiscriminator(nn.Module):

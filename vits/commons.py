@@ -11,7 +11,7 @@ def slice_pitch_segments(x, ids_str, segment_size=4):
         idx_str = ids_str[i]
         #idx_end = idx_str + segment_size
         #ret[i] = x[i, idx_str:idx_end]
-        ret = ret.at[i].set(jax.lax.dynamic_slice(x[i,:],[idx_str],[segment_size]))
+        ret = ret.at[i].set(jax.lax.dynamic_slice(x,[i,idx_str],[1,segment_size]).squeeze(0))
     return ret
 
 
@@ -44,7 +44,7 @@ def slice_segments(x, ids_str, segment_size=4):
         idx_str = ids_str[i]
         #idx_end = idx_str + segment_size
         #ret[i] = x[i, :, idx_str:idx_end]
-        ret = ret.at[i].set(jax.lax.dynamic_slice(x[i, :, :],(0,idx_str),(x.shape[1],segment_size)))
+        ret = ret.at[i].set(jax.lax.dynamic_slice(x,[i,0,idx_str],[1,x.shape[1],segment_size]).squeeze(0))
     return ret
 
 

@@ -28,8 +28,8 @@ class TextEncoder(nn.Module):
     kernel_size:int
     p_dropout:float
     def setup(self):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],precision='high')
-        self.pit = nn.Embed(256, self.hidden_channels)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],precision='high',dtype=jnp.float32)
+        self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
             filter_channels=self.filter_channels,
@@ -37,7 +37,7 @@ class TextEncoder(nn.Module):
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
-        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='high')
+        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='high',dtype=jnp.float32)
     def __call__(self, x, x_lengths, f0,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
@@ -145,7 +145,7 @@ class SynthesizerTrn(nn.Module):
     hp:tuple
     train: bool = True
     def setup(self):
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,precision='high')
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels,precision='high',dtype=jnp.float32)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,

@@ -26,12 +26,12 @@ def stft(x, fft_size, hop_size, win_length):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = jax.scipy.signal.stft(x,fs=32000, nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length,boundary="even")
+    x_stft = jax.scipy.signal.stft(x,fs=32000, nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length,padded=True,boundary="even")
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
     hann_win = scipy.signal.get_window('hann',fft_size)
     scale = np.sqrt(1.0/hann_win.sum()**2)
-    x_stft = x_stft[2]/scale
+    x_stft = x_stft[2][:,:,1:]/scale
     real = jnp.real(x_stft)
     imag = jnp.imag(x_stft)
     return jnp.sqrt(jnp.clip(a=(real**2+imag**2),a_min=1e-7))
@@ -52,8 +52,8 @@ class SpectralConvergengeLoss():
         Returns:
             Tensor: Spectral convergence loss value.
         """
-        #return jnp.sqrt(jnp.sum(jnp.square(y_mag - x_mag))) / jnp.sqrt(jnp.sum(jnp.square(y_mag)))
-        return jnp.mean(jnp.linalg.norm(y_mag - x_mag,ord="fro",axis=(1,2))/jnp.linalg.norm(y_mag,ord="fro",axis=(1,2)))
+        return jnp.sqrt(jnp.sum(jnp.square(y_mag - x_mag))) / jnp.sqrt(jnp.sum(jnp.square(y_mag)))
+        #return jnp.mean(jnp.linalg.norm(y_mag - x_mag,ord="fro",axis=(1,2))/jnp.linalg.norm(y_mag,ord="fro",axis=(1,2)))
 
 
 class LogSTFTMagnitudeLoss():
