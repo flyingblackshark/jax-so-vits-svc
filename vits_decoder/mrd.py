@@ -6,6 +6,7 @@ from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from .snake import snake
 from .weightnorm import WeightStandardizedConv
+import scipy
 class DiscriminatorR(nn.Module):
     resolution:tuple
     hp:tuple
@@ -37,8 +38,10 @@ class DiscriminatorR(nn.Module):
         n_fft, hop_length, win_length = self.resolution
         #x = jnp.pad(x, [(0,0),(0,0),(int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2))], mode='reflect')
         x = x.squeeze(1)
-        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length) #[B, F, TT, 2]
-        mag = jnp.abs(x[2])
+        hann_win = scipy.signal.get_window('hann',n_fft)
+        scale = np.sqrt(1.0/hann_win.sum()**2)
+        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,boundary="even") #[B, F, TT, 2]
+        mag = jnp.abs(x[2]/scale)
         return mag
 
 class MultiResolutionDiscriminator(nn.Module):

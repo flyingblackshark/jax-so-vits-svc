@@ -12,6 +12,8 @@ from flax import linen as nn
 from vits import commons
 import jax
 import optax
+import numpy as np
+import scipy
 #from vits.losses import l1_loss
 def stft(x, fft_size, hop_size, win_length):
     """Perform STFT and convert to magnitude spectrogram.
@@ -24,10 +26,15 @@ def stft(x, fft_size, hop_size, win_length):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = jax.scipy.signal.stft(x,fs=32000, nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length)
+    x_stft = jax.scipy.signal.stft(x,fs=32000, nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length,boundary="even")
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return jnp.clip(a=jnp.abs(x_stft[2]),a_min=1e-4)
+    hann_win = scipy.signal.get_window('hann',fft_size)
+    scale = np.sqrt(1.0/hann_win.sum()**2)
+    x_stft = x_stft[2]/scale
+    real = jnp.real(x_stft)
+    imag = jnp.imag(x_stft)
+    return jnp.sqrt(jnp.clip(a=(real**2+imag**2),a_min=1e-7))
 
 
 class SpectralConvergengeLoss():

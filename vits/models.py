@@ -47,7 +47,7 @@ class TextEncoder(nn.Module):
         x = x + self.pit(f0).transpose(0, 2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        m, logs = jnp.split(stats,[self.out_channels], axis=1)
+        m, logs = jnp.split(stats,2, axis=1)
         z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask, x
 
@@ -121,7 +121,7 @@ class PosteriorEncoder(nn.Module):
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = self.enc(x, x_mask, g=g,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
-        m, logs = jnp.split(stats,[self.out_channels], axis=1)
+        m, logs = jnp.split(stats,2, axis=1)
         z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
         return z, m, logs, x_mask
 def l2norm(t, axis=1, eps=1e-12):
@@ -192,6 +192,8 @@ class SynthesizerTrn(nn.Module):
 
         # SNAC to flow
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
+        #jax.debug.print("logdet_f:{}",logdet_f[0])
+        #jax.debug.print("z_p:{}",z_p[0])
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True,train=train)
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
 
