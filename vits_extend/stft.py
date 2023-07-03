@@ -59,7 +59,7 @@ class TacotronSTFT():
         spec = jax.scipy.signal.stft(y,fs=32000, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")    
         #spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-3))
 
-        return jnp.abs(spec[2][:,:,1:]/scale)
+        return jnp.abs(spec[2]/scale)
 
     def mel_spectrogram(self, y):
         """Computes mel-spectrograms from a batch of waves
@@ -79,7 +79,7 @@ class TacotronSTFT():
         hann_win = scipy.signal.get_window('hann',self.n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
         spec = jax.scipy.signal.stft(y, fs=32000,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")
-        spec = spec[2][:,:,1:]/scale
+        spec = spec[2]/scale
         real = jnp.real(spec)
         imag = jnp.imag(spec)
         spec = jnp.sqrt(real**2+imag**2+(1e-9))

@@ -31,7 +31,7 @@ def stft(x, fft_size, hop_size, win_length):
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
     hann_win = scipy.signal.get_window('hann',fft_size)
     scale = np.sqrt(1.0/hann_win.sum()**2)
-    x_stft = x_stft[2][:,:,1:]/scale
+    x_stft = x_stft[2]/scale
     real = jnp.real(x_stft)
     imag = jnp.imag(x_stft)
     return jnp.sqrt(jnp.clip(a=(real**2+imag**2),a_min=1e-7))

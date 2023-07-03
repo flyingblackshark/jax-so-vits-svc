@@ -16,9 +16,9 @@ class MultiHeadAttention(nn.Module):
     channels:int
     out_channels:int
     n_heads:int
-    p_dropout:float=0.0,
-    window_size:int =None,
-    heads_share:bool=True,
+    p_dropout:float=0.0
+    window_size:int =None
+    heads_share:bool=True
     @nn.compact
     def __call__(self, x, c, attn_mask=None,train=True):
         k_channels = self.channels // self.n_heads
@@ -188,7 +188,7 @@ class Encoder(nn.Module):
     #@nn.compact
     def __call__(self, x, x_mask,train=True):
         attn_mask = jnp.expand_dims(x_mask,2) * jnp.expand_dims(x_mask,-1)
-        x = x * x_mask
+        x = jnp.where(x_mask,x,0)
         
         for i in range(self.n_layers):
             y = self.attn_layers[i](x, x, attn_mask,train=train)
@@ -199,7 +199,7 @@ class Encoder(nn.Module):
             y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
             x = self.norm_layers_2[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
-        x = x * x_mask
+        x = jnp.where(x_mask,x,0)
         return x
 
 
@@ -221,11 +221,14 @@ class FFN(nn.Module):
         self.drop = nn.Dropout(self.p_dropout)
 
     def __call__(self, x, x_mask,train=True):
-        x = self.conv_1((x * x_mask).transpose(0,2,1)).transpose(0,2,1)
+        x = jnp.where(x_mask,x,0)
+        x = self.conv_1(x.transpose(0,2,1)).transpose(0,2,1)
         if self.activation == "gelu":
             x = nn.gelu(x)
         else:
             x = nn.relu(x)
         x = self.drop(x.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
-        x = self.conv_2((x * x_mask).transpose(0,2,1)).transpose(0,2,1)
-        return x * x_mask
+        x = jnp.where(x_mask,x,0)
+        x = self.conv_2(x.transpose(0,2,1)).transpose(0,2,1)
+        x = jnp.where(x_mask,x,0)
+        return x

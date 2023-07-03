@@ -43,12 +43,15 @@ class TextEncoder(nn.Module):
         normal_key,rng = jax.random.split(rng,2)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
-        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
+        x = jnp.where(x_mask,x,0)
         x = x + self.pit(f0).transpose(0, 2,1)
-        x = self.enc(x * x_mask, x_mask,train=train)
-        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        x = self.enc(jnp.where(x_mask,x,0), x_mask,train=train)
+        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
+        stats = jnp.where(x_mask,stats,0)
         m, logs = jnp.split(stats,2, axis=1)
-        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
+        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) 
+        z = jnp.where(x_mask,z,0)
         return z, m, logs, x_mask, x
 
 
@@ -101,7 +104,7 @@ class PosteriorEncoder(nn.Module):
     kernel_size:int
     dilation_rate:int
     n_layers:int
-    gin_channels:int=0,
+    gin_channels:int=0
     def setup(
         self
     ):
@@ -119,11 +122,14 @@ class PosteriorEncoder(nn.Module):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
-        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
+        x = jnp.where(x_mask,x,0)
         x = self.enc(x, x_mask, g=g,train=train)
-        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
+        stats = jnp.where(x_mask,stats,0)
         m, logs = jnp.split(stats,2, axis=1)
-        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) * x_mask
+        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs))
+        z = jnp.where(x_mask,z,0)
         return z, m, logs, x_mask
 def l2norm(t, axis=1, eps=1e-12):
     """Performs L2 normalization of inputs over specified axis.

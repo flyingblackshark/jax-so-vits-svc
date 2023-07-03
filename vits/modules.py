@@ -16,13 +16,13 @@ class WN(nn.Module):
     dilation_rate:int
     n_layers:int
     gin_channels:int=0
-    p_dropout:float=0.
+    p_dropout:float=0
 
     def setup(self):
         assert self.kernel_size % 2 == 1
         in_layers = []
         res_skip_layers = []
-        #self.dropout_layer = nn.Dropout(rate=self.p_dropout)
+        self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
             self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
@@ -49,7 +49,7 @@ class WN(nn.Module):
        
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
         output = jnp.zeros_like(x)
-        n_channels_tensor = [self.hidden_channels]
+        #n_channels_tensor = [self.hidden_channels]
 
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
@@ -62,17 +62,24 @@ class WN(nn.Module):
             else:
                 g_l = jnp.zeros_like(x_in)
 
-            acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
-            #acts = self.dropout_layer(acts,deterministic=not train)
+            #acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
+            #n_channels_int = n_channels[0]
+            in_act = x_in + g_l
+            t_act = nn.tanh(in_act[:, :self.hidden_channels, :])
+            s_act = nn.sigmoid(in_act[:, self.hidden_channels:, :])
+            acts = t_act * s_act
+            acts = self.dropout_layer(acts,deterministic=not train)
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels,:]
-                x = (x + res_acts) * x_mask
+                x = (x + res_acts)
+                x = jnp.where(x_mask,x,0)
                 output = output + res_skip_acts[:, self.hidden_channels:,:]
             else:
                 output = output + res_skip_acts
-        return output * x_mask
+        output = jnp.where(x_mask,output,0)
+        return output
 
 
 
@@ -89,9 +96,9 @@ class ResidualCouplingLayer(nn.Module):
     kernel_size:int
     dilation_rate:int
     n_layers:int
-    p_dropout:float=0,
-    gin_channels:int=0,
-    mean_only:bool=False,
+    p_dropout:float=0
+    gin_channels:int=0
+    mean_only:bool=False
     def setup(
         self
     ):
@@ -116,11 +123,11 @@ class ResidualCouplingLayer(nn.Module):
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x,  [self.half_channels] , axis=1)
         # x0 norm
-        x0_norm = (x0 - speaker_m) * jnp.exp(-speaker_v) * x_mask
-        h = self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        x0_norm = (x0 - speaker_m) * jnp.where(x_mask,jnp.exp(-speaker_v),0)
+        h = jnp.where(x_mask,self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1),0)
         # don't use global condition
         h = self.enc(h, x_mask,train=train)
-        stats = self.post(h.transpose(0,2,1)).transpose(0,2,1)* x_mask
+        stats = jnp.where(x_mask,self.post(h.transpose(0,2,1)).transpose(0,2,1),0)
         if not self.mean_only:
             m, logs = jnp.split(stats, [self.half_channels] * 2, 1)
         else:
@@ -129,19 +136,25 @@ class ResidualCouplingLayer(nn.Module):
 
         if not reverse:
             # x1 norm before affine xform
-            x1_norm = (x1 - speaker_m) * jnp.exp(-speaker_v) * x_mask
-            x1 = (m + x1_norm * jnp.exp(logs)) * x_mask
+            x1_norm = (x1 - speaker_m) * jnp.exp(-speaker_v)
+            x1_norm = jnp.where(x_mask,x1_norm,0)
+            x1 = (m + x1_norm * jnp.exp(logs)) 
+            x1 = jnp.where(x_mask,x1,0)
             x = jnp.concatenate([x0, x1], 1)
             # speaker var to logdet
-            logdet = jnp.sum(logs * x_mask, [1, 2]) - jnp.sum(
-                jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
+            logs = jnp.where(x_mask,logs,0)
+            logdet = jnp.sum(logs, [1, 2]) - jnp.sum(
+                jnp.where(x_mask,jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])),0), [1, 2])
             return x, logdet
         else:
-            x1 = (x1 - m) * jnp.exp(-logs) * x_mask
+            x1 = (x1 - m) * jnp.exp(-logs)
+            x1 = jnp.where(x_mask,x1,0)
             # x1 denorm before output
-            x1 = (speaker_m + x1 * jnp.exp(speaker_v)) * x_mask
+            x1 = (speaker_m + x1 * jnp.exp(speaker_v))
+            x1 = jnp.where(x_mask,x1,0)
             x = jnp.concatenate([x0, x1], 1)
+            logs = jnp.where(x_mask,logs,0)
             # speaker var to logdet
-            logdet = jnp.sum(logs * x_mask, [1, 2]) + jnp.sum(
-                 jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])) * x_mask, [1, 2])
+            logdet = jnp.sum(logs, [1, 2]) + jnp.sum(
+                 jnp.where(x_mask,jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])),0), [1, 2])
             return x, logdet
