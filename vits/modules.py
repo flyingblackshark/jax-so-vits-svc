@@ -25,7 +25,7 @@ class WN(nn.Module):
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
-            self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=1)
+            self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             in_layer = WeightStandardizedConv(
@@ -41,7 +41,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = WeightStandardizedConv(features=res_skip_channels, kernel_size=1)
+            res_skip_layer = WeightStandardizedConv(features=res_skip_channels, kernel_size=[1])
             res_skip_layers.append(res_skip_layer)
 
         self.res_skip_layers = res_skip_layers
@@ -72,10 +72,10 @@ class WN(nn.Module):
 
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             if i < self.n_layers - 1:
-                res_acts = res_skip_acts[:, : self.hidden_channels,:]
+                res_acts = res_skip_acts[:,:self.hidden_channels,:]
                 x = (x + res_acts)
                 x = jnp.where(x_mask,x,0)
-                output = output + res_skip_acts[:, self.hidden_channels:,:]
+                output = output + res_skip_acts[:,self.hidden_channels:,:]
             else:
                 output = output + res_skip_acts
         output = jnp.where(x_mask,output,0)

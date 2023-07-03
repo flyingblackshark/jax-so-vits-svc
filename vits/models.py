@@ -42,10 +42,10 @@ class TextEncoder(nn.Module):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x = x.transpose(0,2,1)  # [b, h, t]
-        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
+        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = jnp.where(x_mask,x,0)
-        x = x + self.pit(f0).transpose(0, 2,1)
+        x = x + self.pit(f0).transpose(0,2,1)
         x = self.enc(jnp.where(x_mask,x,0), x_mask,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
         stats = jnp.where(x_mask,stats,0)
@@ -121,7 +121,7 @@ class PosteriorEncoder(nn.Module):
     def __call__(self, x, x_lengths,g=None,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
-        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
+        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = jnp.where(x_mask,x,0)
         x = self.enc(x, x_mask, g=g,train=train)
