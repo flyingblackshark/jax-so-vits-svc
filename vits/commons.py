@@ -28,14 +28,14 @@ def rand_slice_segments_with_pitch(x, pitch, x_lengths=None, segment_size=4,rng=
 
 
 
-def get_padding(kernel_size, dilation=1):
-    return int((kernel_size * dilation - dilation) / 2)
+# def get_padding(kernel_size, dilation=1):
+#     return int((kernel_size * dilation - dilation) / 2)
 
 
-def convert_pad_shape(pad_shape):
-    l = pad_shape[::-1]
-    pad_shape = [item for sublist in l for item in sublist]
-    return pad_shape
+# def convert_pad_shape(pad_shape):
+#     l = pad_shape[::-1]
+#     pad_shape = [item for sublist in l for item in sublist]
+#     return pad_shape
 
 
 def slice_segments(x, ids_str, segment_size=4):
@@ -59,37 +59,37 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4,rng=None):
     return ret, ids_str
 
 
-def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e4):
-    position = jnp.arange(length)
-    num_timescales = channels // 2
-    log_timescale_increment = math.log(float(max_timescale) / float(min_timescale)) / (
-        num_timescales - 1
-    )
-    inv_timescales = min_timescale * jnp.exp(
-        jnp.arange(num_timescales) * -log_timescale_increment
-    )
-    scaled_time = position.unsqueeze(0) * inv_timescales.unsqueeze(1)
-    signal = jnp.concatenate([jnp.sin(scaled_time), jnp.cos(scaled_time)], 0)
-    signal = jnp.pad(signal, [0, 0, 0, channels % 2])
-    signal = jnp.reshape(signal,[1, channels, length])
-    return signal
+# def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e4):
+#     position = jnp.arange(length)
+#     num_timescales = channels // 2
+#     log_timescale_increment = math.log(float(max_timescale) / float(min_timescale)) / (
+#         num_timescales - 1
+#     )
+#     inv_timescales = min_timescale * jnp.exp(
+#         jnp.arange(num_timescales) * -log_timescale_increment
+#     )
+#     scaled_time = position.unsqueeze(0) * inv_timescales.unsqueeze(1)
+#     signal = jnp.concatenate([jnp.sin(scaled_time), jnp.cos(scaled_time)], 0)
+#     signal = jnp.pad(signal, [0, 0, 0, channels % 2])
+#     signal = jnp.reshape(signal,[1, channels, length])
+#     return signal
 
 
-def add_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4):
-    b, channels, length = x.size()
-    signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
-    return x + signal.to(dtype=x.dtype, device=x.device)
+# def add_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4):
+#     b, channels, length = x.size()
+#     signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
+#     return x + signal.to(dtype=x.dtype, device=x.device)
 
 
-def cat_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4, axis=1):
-    b, channels, length = x.size()
-    signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
-    return jnp.concatenate([x, signal.to(dtype=x.dtype, device=x.device)], axis)
+# def cat_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4, axis=1):
+#     b, channels, length = x.size()
+#     signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
+#     return jnp.concatenate([x, signal.to(dtype=x.dtype, device=x.device)], axis)
 
 
-def subsequent_mask(length):
-    mask = jnp.tril(jnp.ones(length, length)).unsqueeze(0).unsqueeze(0)
-    return mask
+# def subsequent_mask(length):
+#     mask = jnp.tril(jnp.ones(length, length)).unsqueeze(0).unsqueeze(0)
+#     return mask
 
 
 
@@ -108,22 +108,22 @@ def sequence_mask(length, max_length=None):
     return jnp.expand_dims(x,0) < jnp.expand_dims(length,1)
 
 
-def generate_path(duration, mask):
-    """
-    duration: [b, 1, t_x]
-    mask: [b, 1, t_y, t_x]
-    """
-    device = duration.device
+# def generate_path(duration, mask):
+#     """
+#     duration: [b, 1, t_x]
+#     mask: [b, 1, t_y, t_x]
+#     """
+#     device = duration.device
 
-    b, _, t_y, t_x = mask.shape
-    cum_duration = jnp.cumsum(duration, -1)
+#     b, _, t_y, t_x = mask.shape
+#     cum_duration = jnp.cumsum(duration, -1)
 
-    cum_duration_flat = cum_duration.view(b * t_x)
-    path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
-    path = path.view(b, t_x, t_y)
-    path = path - jnp.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
-    path = path.unsqueeze(1).transpose(2, 3) * mask
-    return path
+#     cum_duration_flat = cum_duration.view(b * t_x)
+#     path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
+#     path = path.view(b, t_x, t_y)
+#     path = path - jnp.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
+#     path = path.unsqueeze(1).transpose(2, 3) * mask
+#     return path
 
 
 # def clip_grad_value_(parameters, clip_value, norm_type=2):
