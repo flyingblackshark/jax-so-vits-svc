@@ -98,7 +98,7 @@ class ResidualCouplingLayer(nn.Module):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
         self.half_channels = self.channels // 2
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='high',dtype=jnp.float32)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='highest',dtype=jnp.float32)
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -107,9 +107,9 @@ class ResidualCouplingLayer(nn.Module):
             self.n_layers,
             p_dropout=self.p_dropout
         )
-        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),precision='high',dtype=jnp.float32)
+        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),precision='highest',dtype=jnp.float32)
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],precision='high',dtype=jnp.float32)
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],precision='highest',dtype=jnp.float32)
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)

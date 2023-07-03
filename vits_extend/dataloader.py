@@ -21,7 +21,7 @@ def create_dataloader_train(hps, n_gpus, rank):
         batch_size=hps.train.batch_size,
         num_workers=0,
         shuffle=True,
-        pin_memory=False,
+        pin_memory=True,
         collate_fn=collate_fn,
         persistent_workers=False,
         drop_last=True)#,

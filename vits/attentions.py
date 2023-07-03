@@ -30,12 +30,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
-        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
-        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='high',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
+        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
+        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
+        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
         x, attn = self.attention(q, k, v,emb_rel_k,emb_rel_v,k_channels, mask=attn_mask,train=train)
 
-        x = nn.Conv(self.out_channels, [1],precision='high',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
+        x = nn.Conv(self.out_channels, [1],precision='highest',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
         return x
 
     def attention(self, query, key, value, emb_rel_k,emb_rel_v,k_channels,mask=None,train=True):
@@ -193,11 +193,11 @@ class Encoder(nn.Module):
         for i in range(self.n_layers):
             y = self.attn_layers[i](x, x, attn_mask,train=train)
             y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
-            x = self.norm_layers_1[i](x + y)
+            x = self.norm_layers_1[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
             y = self.ffn_layers[i](x, x_mask,train=train)
             y = self.drop(y.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
-            x = self.norm_layers_2[i](x + y)
+            x = self.norm_layers_2[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
         x = x * x_mask
         return x
@@ -216,8 +216,8 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,precision='high',dtype=jnp.float32)
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,precision='high',dtype=jnp.float32)
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,precision='highest',dtype=jnp.float32)
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,precision='highest',dtype=jnp.float32)
         self.drop = nn.Dropout(self.p_dropout)
 
     def __call__(self, x, x_mask,train=True):

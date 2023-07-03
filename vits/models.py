@@ -28,7 +28,7 @@ class TextEncoder(nn.Module):
     kernel_size:int
     p_dropout:float
     def setup(self):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],precision='high',dtype=jnp.float32)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],precision='highest',dtype=jnp.float32)
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
@@ -37,12 +37,12 @@ class TextEncoder(nn.Module):
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
-        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='high',dtype=jnp.float32)
+        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],precision='highest',dtype=jnp.float32)
     def __call__(self, x, x_lengths, f0,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x = x.transpose(0,2,1)  # [b, h, t]
-        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
+        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = x + self.pit(f0).transpose(0, 2,1)
         x = self.enc(x * x_mask, x_mask,train=train)
@@ -105,7 +105,7 @@ class PosteriorEncoder(nn.Module):
     def setup(
         self
     ):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='high')
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='highest')
         self.enc = modules.WN(
             self.hidden_channels,
             self.kernel_size,
@@ -113,12 +113,12 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels,
         )
-        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='high')
+        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='highest')
 
     def __call__(self, x, x_lengths,g=None,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
-        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
+        x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1).astype(x.dtype)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         x = self.enc(x, x_mask, g=g,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
@@ -146,7 +146,7 @@ class SynthesizerTrn(nn.Module):
     hp:tuple
     train: bool = True
     def setup(self):
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,precision='high',dtype=jnp.float32)
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels,precision='highest',dtype=jnp.float32)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,
