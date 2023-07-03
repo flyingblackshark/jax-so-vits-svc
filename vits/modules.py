@@ -30,7 +30,7 @@ class WN(nn.Module):
             dilation = self.dilation_rate**i
             in_layer = WeightStandardizedConv(
                 features=2 * self.hidden_channels,
-                kernel_size=self.kernel_size,
+                kernel_size=[self.kernel_size],
                 kernel_dilation=dilation
             )
             in_layers.append(in_layer)
