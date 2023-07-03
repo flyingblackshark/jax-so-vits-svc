@@ -114,7 +114,7 @@ class PosteriorEncoder(nn.Module):
             self.kernel_size,
             self.dilation_rate,
             self.n_layers,
-            gin_channels=self.gin_channels,
+            gin_channels=self.gin_channels
         )
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='highest')
 

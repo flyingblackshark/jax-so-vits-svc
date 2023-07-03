@@ -25,12 +25,12 @@ class WN(nn.Module):
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
-            self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
+            self.cond_layer = WeightStandardizedConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=1)
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             in_layer = WeightStandardizedConv(
                 features=2 * self.hidden_channels,
-                kernel_size=[self.kernel_size],
+                kernel_size=self.kernel_size,
                 kernel_dilation=dilation
             )
             in_layers.append(in_layer)
@@ -41,7 +41,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = WeightStandardizedConv(features=res_skip_channels, kernel_size=[1])
+            res_skip_layer = WeightStandardizedConv(features=res_skip_channels, kernel_size=1)
             res_skip_layers.append(res_skip_layer)
 
         self.res_skip_layers = res_skip_layers
@@ -85,7 +85,7 @@ class WN(nn.Module):
 
 class Flip(nn.Module):
     def __call__(self, x, *args, reverse=False, **kwargs):
-        x = jnp.flip(x, [1])
+        x = jnp.flip(x, 1)
         logdet = jnp.zeros(x.shape[0])
         return x, logdet
 
@@ -119,9 +119,9 @@ class ResidualCouplingLayer(nn.Module):
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],precision='highest',dtype=jnp.float32)
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
-        speaker = self.snac(jnp.expand_dims(g,1)).transpose(0,2,1)
+        speaker = self.snac(jnp.expand_dims(g,-1).transpose(0,2,1)).transpose(0,2,1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
-        x0, x1 = jnp.split(x,  [self.half_channels] , axis=1)
+        x0, x1 = jnp.split(x, 2 , axis=1)
         # x0 norm
         x0_norm = (x0 - speaker_m) * jnp.where(x_mask,jnp.exp(-speaker_v),0)
         h = jnp.where(x_mask,self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1),0)
@@ -129,7 +129,7 @@ class ResidualCouplingLayer(nn.Module):
         h = self.enc(h, x_mask,train=train)
         stats = jnp.where(x_mask,self.post(h.transpose(0,2,1)).transpose(0,2,1),0)
         if not self.mean_only:
-            m, logs = jnp.split(stats, [self.half_channels] * 2, 1)
+            m, logs = jnp.split(stats, 2, 1)
         else:
             m = stats
             logs = jnp.zeros_like(m)
