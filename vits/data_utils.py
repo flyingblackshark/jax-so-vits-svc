@@ -185,14 +185,14 @@ class TextAudioSpeakerCollate:
         # spe_lengths = spe_lengths.numpy()
         # wav_padded = wav_padded.numpy()
         # wav_lengths = wav_lengths.numpy()
-        ppg_lengths = jnp.asarray(np.asarray(ppg_lengths,dtype=np.int32))
-        pit_padded = jnp.asarray(np.asarray(pit_padded,dtype=np.float32))
-        ppg_padded = jnp.asarray(np.asarray(ppg_padded,dtype=np.float32))
-        spk = jnp.asarray(np.asarray(spk,dtype=np.float32))
-        spe_padded = jnp.asarray(np.asarray(spe_padded,dtype=np.float32))
-        spe_lengths = jnp.asarray(np.asarray(spe_lengths,dtype=np.int32))
-        wav_padded = jnp.asarray(np.asarray(wav_padded,dtype=np.float32))
-        wav_lengths = jnp.asarray(np.asarray(wav_lengths,dtype=np.int32))
+        ppg_lengths = jnp.asarray(np.asarray(ppg_lengths))
+        pit_padded = jnp.asarray(np.asarray(pit_padded))
+        ppg_padded = jnp.asarray(np.asarray(ppg_padded))
+        spk = jnp.asarray(np.asarray(spk))
+        spe_padded = jnp.asarray(np.asarray(spe_padded))
+        spe_lengths = jnp.asarray(np.asarray(spe_lengths))
+        wav_padded = jnp.asarray(np.asarray(wav_padded))
+        wav_lengths = jnp.asarray(np.asarray(wav_lengths))
         return (
             ppg_padded,
             ppg_lengths,
