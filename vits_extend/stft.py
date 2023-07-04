@@ -76,7 +76,7 @@ class TacotronSTFT():
         # y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
         #                             mode='reflect')
         spec = jax.scipy.signal.stft(y, fs=22050,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")
-        spec = spec[2]
+        spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
         spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
 
