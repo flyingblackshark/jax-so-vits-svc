@@ -54,12 +54,11 @@ class TacotronSTFT():
         #assert (torch.min(y.data) >= -1)
         #assert (torch.max(y.data) <= 1)
         #y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],mode='reflect')
-        hann_win = scipy.signal.get_window('hann',self.n_fft)
-        scale = np.sqrt(1.0/hann_win.sum()**2)
-        spec = jax.scipy.signal.stft(y,fs=32000, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")    
+
+        spec = jax.scipy.signal.stft(y,fs=22050, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")    
         #spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-3))
 
-        return jnp.abs(spec[2]/scale)
+        return jnp.abs(spec[2])
 
     def mel_spectrogram(self, y):
         """Computes mel-spectrograms from a batch of waves
@@ -76,13 +75,8 @@ class TacotronSTFT():
 
         # y = jnp.pad(y,[(0,0),(int((self.n_fft - self.hop_size) / 2), int((self.n_fft - self.hop_size) / 2))],
         #                             mode='reflect')
-        hann_win = scipy.signal.get_window('hann',self.n_fft)
-        scale = np.sqrt(1.0/hann_win.sum()**2)
-        spec = jax.scipy.signal.stft(y, fs=32000,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")
-        spec = spec[2]/scale
-        real = jnp.real(spec)
-        imag = jnp.imag(spec)
-        spec = jnp.sqrt(real**2+imag**2+(1e-9))
+        spec = jax.scipy.signal.stft(y, fs=22050,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary="even")
+        spec = spec[2]
         spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
 
