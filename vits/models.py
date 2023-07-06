@@ -28,9 +28,9 @@ class TextEncoder(nn.Module):
     kernel_size:int
     p_dropout:float
     def setup(self):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32)
-        self.hub = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32)
-        self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.hub = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32,embedding_init=nn.initializers.normal(1.0))
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
             filter_channels=self.filter_channels,
@@ -38,7 +38,7 @@ class TextEncoder(nn.Module):
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout,)
-        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32)
+        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
     def __call__(self, x, x_lengths,v, f0,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
@@ -112,7 +112,7 @@ class PosteriorEncoder(nn.Module):
     def setup(
         self
     ):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='highest')
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.enc = modules.WN(
             self.hidden_channels,
             self.kernel_size,
@@ -120,7 +120,7 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels
         )
-        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],precision='highest')
+        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
 
     def __call__(self, x, x_lengths,g=None,train=True):
         rng = self.make_rng('rnorms')
@@ -156,7 +156,7 @@ class SynthesizerTrn(nn.Module):
     hp:tuple
     train: bool = True
     def setup(self):
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,precision='highest',dtype=jnp.float32)
+        self.emb_g = nn.Dense(self.hp.vits.gin_channels,dtype=jnp.float32)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,
@@ -202,8 +202,8 @@ class SynthesizerTrn(nn.Module):
         audio = self.dec(spk, z_slice, pit_slice,train=train)
 
         # SNAC to flow
-        z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,train=train)
-        z_r, logdet_r = self.flow(z_p, spec_mask, g=spk, reverse=True,train=train)
+        z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,reverse=False,train=train)
+        z_r, logdet_r = self.flow(z_p, spec_mask, g=spk,reverse=True,train=train)
 
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
 

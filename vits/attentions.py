@@ -30,12 +30,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
-        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
-        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),precision='highest',dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
+        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(x.transpose(0,2,1)).transpose(0,2,1)
+        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(c.transpose(0,2,1)).transpose(0,2,1)
+        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(c.transpose(0,2,1)).transpose(0,2,1)
         x, attn = self.attention(q, k, v,emb_rel_k,emb_rel_v,k_channels, mask=attn_mask,train=train)
 
-        x = nn.Conv(self.out_channels, [1],precision='highest',dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
+        x = nn.Conv(self.out_channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(x.transpose(0,2,1)).transpose(0,2,1)
         return x
 
     def attention(self, query, key, value, emb_rel_k,emb_rel_v,k_channels,mask=None,train=True):
@@ -57,7 +57,7 @@ class MultiHeadAttention(nn.Module):
             scores_local = self._relative_position_to_absolute_position(rel_logits)
             scores = scores + scores_local
         if mask is not None:
-            scores=jnp.where(mask==0,-1e4,scores)
+            scores=jnp.where(mask,scores,(-1e4))
         p_attn = nn.softmax(scores, axis=-1)  # [b, n_h, t_t, t_s]
         p_attn = nn.Dropout(self.p_dropout,deterministic=not train)(p_attn)
         output = jnp.matmul(p_attn, value)
@@ -216,8 +216,8 @@ class FFN(nn.Module):
             self.padding = "CAUSAL"
         else:
             self.padding = "SAME"
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,precision='highest',dtype=jnp.float32)
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,precision='highest',dtype=jnp.float32)
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],padding=self.padding,dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],padding=self.padding,dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.drop = nn.Dropout(self.p_dropout)
 
     def __call__(self, x, x_mask,train=True):

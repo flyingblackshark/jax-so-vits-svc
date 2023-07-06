@@ -25,13 +25,15 @@ class WN(nn.Module):
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
 
         if self.gin_channels != 0:
-            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
+            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
             in_layer = nn.Conv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
-                kernel_dilation=dilation
+                kernel_dilation=dilation,
+                kernel_init=nn.initializers.normal(),
+                bias_init=nn.initializers.normal()
             )
             in_layers.append(in_layer)
 
@@ -41,7 +43,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1])
+            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
             res_skip_layers.append(res_skip_layer)
 
         self.res_skip_layers = res_skip_layers
@@ -105,7 +107,7 @@ class ResidualCouplingLayer(nn.Module):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
         self.half_channels = self.channels // 2
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],precision='highest',dtype=jnp.float32)
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -114,11 +116,30 @@ class ResidualCouplingLayer(nn.Module):
             self.n_layers,
             p_dropout=self.p_dropout
         )
-        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),precision='highest',dtype=jnp.float32)
+        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],precision='highest',dtype=jnp.float32)
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
+        # x0, x1 = jnp.split(x, 2, 1)
+        # h = self.pre(x0) * x_mask
+        # h = self.enc(h, x_mask, g=g)
+        # stats = self.post(h) * x_mask
+        # if not self.mean_only:
+        #     m, logs = jnp.split(stats, 2, 1)
+        # else:
+        #     m = stats
+        #     logs = jnp.zeros_like(m)
+
+        # if not reverse:
+        #     x1 = m + x1 * jnp.exp(logs) * x_mask
+        #     x = jnp.concatenate([x0, x1], 1)
+        #     logdet = jnp.sum(logs, [1,2])
+        #     return x, logdet
+        # else:
+        #     x1 = (x1 - m) * jnp.exp(-logs) * x_mask
+        #     x = jnp.concatenate([x0, x1], 1)
+        # return x
         speaker = self.snac(jnp.expand_dims(g,-1).transpose(0,2,1)).transpose(0,2,1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x, 2 , axis=1)
