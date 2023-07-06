@@ -13,20 +13,13 @@ from functools import partial
 import scipy
 @partial(jax.jit, static_argnums=(1,2,3),backend='cpu')
 def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
-    # if jnp.min(y) < -1.0:
-    #     print("min value is ", jnp.min(y))
-    # if jnp.max(y) > 1.0:
-    #     print("max value is ", jnp.max(y))
-    #pad_num = int((n_fft - hop_size) / 2)
-    #y = jnp.pad(y,[(0,0),(pad_num,pad_num)], mode='reflect')
-    # hann_win = scipy.signal.get_window('hann',n_fft)
-    # scale = np.sqrt(1.0/hann_win.sum()**2)
+    hann_win = scipy.signal.get_window('hann',n_fft)
+    scale = np.sqrt(1.0/hann_win.sum()**2)
     spec = jax.scipy.signal.stft(y,fs=22050, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary="even")
-    # spec = spec[2]/scale
-    # real = jnp.real(spec)
-    # imag = jnp.imag(spec)
-    # spec = jnp.sqrt(real**2+imag**2+(1e-6))
-    spec = jnp.clip(a=jnp.abs(spec[2]),a_min=(1e-9))
+    spec = spec[2]/scale
+    real = jnp.real(spec)
+    imag = jnp.imag(spec)
+    spec = jnp.sqrt(real**2+imag**2+(1e-6))
     return spec
 
 def compute_spec(hps, filename, specname):

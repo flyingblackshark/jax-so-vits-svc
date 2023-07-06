@@ -37,7 +37,7 @@ PRNGKey = jnp.ndarray
 def train(rank, args, chkpt_path, hp, hp_str):
     num_devices = jax.device_count()
     total_steps = 180000
-    @partial(jax.pmap, static_broadcasted_argnums=(1))
+    #@partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_generator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
@@ -59,7 +59,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             params=variables['params'])
         
         return state
-    @partial(jax.pmap, static_broadcasted_argnums=(1))
+    #@partial(jax.pmap, static_broadcasted_argnums=(1))
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
@@ -223,9 +223,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     combine_step_key,key_generator, key_discriminator, key = jax.random.split(key, 4)
-    key_generator = shard_prng_key(key_generator)
-    key_discriminator = shard_prng_key(key_discriminator)
-    combine_step_key = shard_prng_key(combine_step_key)
+    # key_generator = shard_prng_key(key_generator)
+    # key_discriminator = shard_prng_key(key_discriminator)
+    # combine_step_key = shard_prng_key(combine_step_key)
     
     init_epoch = 1
     step = 0
@@ -261,9 +261,10 @@ def train(rank, args, chkpt_path, hp, hp_str):
         step = checkpoint_manager.latest_step()  # step = 4
         states=checkpoint_manager.restore(step,items=target)
         discriminator_state=states['model_d']
-        discriminator_state = flax.jax_utils.replicate(discriminator_state)
         generator_state=states['model_g']
-        generator_state = flax.jax_utils.replicate(generator_state)
+
+    discriminator_state = flax.jax_utils.replicate(discriminator_state)
+    generator_state = flax.jax_utils.replicate(generator_state)
 
     for epoch in range(init_epoch, hp.train.epochs):
 
