@@ -9,7 +9,7 @@ import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from .snake import snake
-from .weightnorm import WeightStandardizedConv
+
 class DiscriminatorP(nn.Module):
     hp:tuple
     period:tuple
@@ -21,13 +21,13 @@ class DiscriminatorP(nn.Module):
       
 
         self.convs = [
-            WeightStandardizedConv(64, (kernel_size, 1), (stride, 1)),
-            WeightStandardizedConv( 128, (kernel_size, 1), (stride, 1)),
-            WeightStandardizedConv( 256, (kernel_size, 1), (stride, 1)),
-            WeightStandardizedConv( 512, (kernel_size, 1), (stride, 1)),
-            WeightStandardizedConv( 1024, (kernel_size, 1), 1),
+            nn.Conv(64, (kernel_size, 1), (stride, 1)),
+            nn.Conv( 128, (kernel_size, 1), (stride, 1)),
+            nn.Conv( 256, (kernel_size, 1), (stride, 1)),
+            nn.Conv( 512, (kernel_size, 1), (stride, 1)),
+            nn.Conv( 1024, (kernel_size, 1), 1),
         ]
-        self.conv_post = WeightStandardizedConv(1, (3, 1), 1)
+        self.conv_post = nn.Conv(1, (3, 1), 1)
 
     def __call__(self, x,train=True):
         fmap = []

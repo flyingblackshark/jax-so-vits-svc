@@ -6,7 +6,7 @@ import flax
 import jax
 from typing import Tuple
 from jax.nn.initializers import normal as normal_init
-from .weightnorm import WeightStandardizedConv
+
 
 class AMPBlock(nn.Module):
     channels:int
@@ -15,13 +15,13 @@ class AMPBlock(nn.Module):
     def setup(self):
        
         self.convs1 =[
-            WeightStandardizedConv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=normal_init(0.01)),
-            WeightStandardizedConv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01)),
-            WeightStandardizedConv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01))]
+            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=normal_init(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01))]
         self.convs2 = [
-            WeightStandardizedConv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
-            WeightStandardizedConv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
-            WeightStandardizedConv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01))
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01)),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01))
         ]
         # total number of conv layers
         self.num_layers = len(self.convs1) + len(self.convs2)

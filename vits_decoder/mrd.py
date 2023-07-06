@@ -5,7 +5,7 @@ import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from .snake import snake
-from .weightnorm import WeightStandardizedConv
+
 import scipy
 class DiscriminatorR(nn.Module):
     resolution:tuple
@@ -13,13 +13,13 @@ class DiscriminatorR(nn.Module):
     def setup(self):
         self.LRELU_SLOPE = self.hp.mpd.lReLU_slope
         self.convs = [
-            WeightStandardizedConv( 32, (3, 9)),
-            WeightStandardizedConv( 32, (3, 9), strides=(1, 2)),
-            WeightStandardizedConv( 32, (3, 9), strides=(1, 2)),
-            WeightStandardizedConv( 32, (3, 9), strides=(1, 2)),
-            WeightStandardizedConv( 32, (3, 3)),
+            nn.Conv( 32, (3, 9)),
+            nn.Conv( 32, (3, 9), strides=(1, 2)),
+            nn.Conv( 32, (3, 9), strides=(1, 2)),
+            nn.Conv( 32, (3, 9), strides=(1, 2)),
+            nn.Conv( 32, (3, 3)),
         ]
-        self.conv_post = WeightStandardizedConv( 1, (3, 3))
+        self.conv_post = nn.Conv( 1, (3, 3))
     
     def __call__(self, x,train=True):
         fmap = []

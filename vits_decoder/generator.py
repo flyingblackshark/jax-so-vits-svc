@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import flax.linen as nn
 
-from .weightnorm import WeightStandardizedConvTranspose
+
 from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
@@ -55,7 +55,7 @@ class Generator(nn.Module):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
-                    WeightStandardizedConvTranspose(
+                    nn.ConvTranspose(
                         self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         (k,),
                         (u,),

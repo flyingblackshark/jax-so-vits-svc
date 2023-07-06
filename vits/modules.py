@@ -6,7 +6,7 @@ from flax import linen as nn
 from vits import commons
 import jax
 
-from vits_decoder.weightnorm import WeightStandardizedConv
+
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 

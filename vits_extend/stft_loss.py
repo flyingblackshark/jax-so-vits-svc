@@ -53,7 +53,6 @@ class SpectralConvergengeLoss():
             Tensor: Spectral convergence loss value.
         """
         return jnp.sqrt(jnp.sum(jnp.square(y_mag - x_mag))) / jnp.sqrt(jnp.sum(jnp.square(y_mag)))
-        #return jnp.mean(jnp.linalg.norm(y_mag - x_mag,ord="fro",axis=(1,2))/jnp.linalg.norm(y_mag,ord="fro",axis=(1,2)))
 
 
 class LogSTFTMagnitudeLoss():
@@ -72,7 +71,7 @@ class LogSTFTMagnitudeLoss():
             Tensor: Log STFT magnitude loss value.
         """
         #return optax.l2_loss(jnp.log(y_mag), jnp.log(x_mag))
-        return jnp.mean(optax.huber_loss(jnp.log(y_mag), jnp.log(x_mag)))
+        return jnp.mean(jnp.abs(jnp.log(y_mag) - jnp.log(x_mag)))
 
 
 class STFTLoss():

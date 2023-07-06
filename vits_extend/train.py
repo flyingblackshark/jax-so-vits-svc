@@ -47,14 +47,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.chain(
-            optax.clip_by_global_norm(1.0),
-            optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
-            )
-        (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,wav,wav_l) = next(iter(trainloader))
+        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+          
+        (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
         params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
         init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
-        variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
+        
+        variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit,vec=fake_vec, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
             params=variables['params'])
@@ -64,15 +63,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
     def create_discriminator_state(rng, model_cls): 
         r"""Create the training state given a model class. """ 
         model = model_cls(hp=hp)
-        (fake_ppg,fake_ppg_l,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+        (fake_ppg,fake_ppg_l,fake_pit,fake_vec,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
         fake_audio = fake_audio[:,:,:8000]
         exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
                                                       decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
                                                       staircase=False)
-        tx = optax.chain(
-            optax.clip_by_global_norm(1.0),
-            optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
-            )
+        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+       
         variables = model.init(rng, fake_audio)
 
         state = TrainState.create(apply_fn=model.apply, tx=tx, 
@@ -82,7 +79,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,rng:PRNGKey
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, vec:jnp.ndarray,spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,rng:PRNGKey
                       ):
       
 
@@ -97,12 +94,12 @@ def train(rank, args, chkpt_path, hp, hp_str):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             dropout_key ,predict_key, rng = jax.random.split(rng, 3)
             fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},  ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+                {'params': params},  ppg, pit,vec, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
-            mel_loss = jnp.mean(optax.huber_loss(mel_fake, mel_real)) * hp.train.c_mel
+            mel_loss = jnp.mean(jnp.abs(mel_fake - mel_real)) * hp.train.c_mel
             #Multi-Resolution STFT Loss
             
             sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
@@ -175,7 +172,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     @partial(jax.pmap, axis_name='num_devices')         
-    def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
+    def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
         stft = TacotronSTFT(filter_length=hp.data.filter_length,
                 hop_length=hp.data.hop_length,
                 win_length=hp.data.win_length,
@@ -191,7 +188,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
                                  ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False,rngs={'rnorms':predict_key})
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
-        mel_loss_val = jnp.mean(optax.huber_loss(mel_fake, mel_real))
+        mel_loss_val = jnp.mean(jnp.abs(mel_fake - mel_real))
 
         #f idx == 0:
         spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
@@ -206,13 +203,13 @@ def train(rank, args, chkpt_path, hp, hp_str):
        
      
         mel_loss = 0.0
-        for val_ppg, val_ppg_l, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
+        for val_ppg, val_ppg_l,val_vec, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
             val_ppg=shard(val_ppg)
             val_ppg_l=shard(val_ppg_l)
             val_pit=shard(val_pit)
             val_spk=shard(val_spk)
             val_audio=shard(val_audio)
-            mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_ppg,val_pit,val_spk,val_ppg_l,val_audio)
+            mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_ppg,val_pit,val_vec,val_spk,val_ppg_l,val_audio)
             val_audio,val_fake_audio,spec_fake,spec_real = \
             jax.device_get([val_audio[0],val_fake_audio[0],spec_fake[0],spec_real[0]])
             mel_loss += mel_loss_val.mean()
@@ -275,10 +272,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
         else:
             loader = trainloader
 
-        for ppg, ppg_l, pit, spk, spec, spec_l, audio, audio_l in loader:
+        for ppg, ppg_l,vec, pit, spk, spec, spec_l, audio, audio_l in loader:
 
             ppg = shard(ppg)
             ppg_l = shard(ppg_l)
+            vec = shard(vec)
             pit = shard(pit)
             spk = shard(spk)
             spec = shard(spec)
@@ -286,7 +284,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             audio = shard(audio)
             audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=\
-            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng=combine_step_key)
+            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit,vec=vec, spk=spk, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng=combine_step_key)
 
 
 
