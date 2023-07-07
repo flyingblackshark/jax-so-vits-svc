@@ -36,7 +36,7 @@ def create_dataloader_eval(hps):
         eval_dataset,
         num_workers=0,
         shuffle=False,
-        batch_size=hps.train.batch_size,
+        batch_size=8,
         pin_memory=False,
         drop_last=True,
         collate_fn=collate_fn)
