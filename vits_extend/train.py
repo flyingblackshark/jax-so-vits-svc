@@ -79,7 +79,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
     @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                       ppg : jnp.ndarray  , pit : jnp.ndarray, vec:jnp.ndarray,spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray):
+                       ppg : jnp.ndarray  , pit : jnp.ndarray, vec:jnp.ndarray,spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,rng_e:PRNGKey):
         ppg = jnp.asarray(ppg)
         pit = jnp.asarray(pit)
         vec = jnp.asarray(vec)
@@ -98,8 +98,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-            rng = jax.random.PRNGKey(1234)
-            dropout_key ,predict_key, rng = jax.random.split(rng, 3)
+            
+            dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
             fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': params},  ppg, pit,vec, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
@@ -281,7 +281,8 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loader = trainloader
 
         for ppg, ppg_l,vec, pit, spk, spec, spec_l, audio, audio_l in loader:
-
+            step_key,combine_step_key=jax.random.split(combine_step_key)
+            step_key = shard_prng_key(step_key)
             ppg = shard(ppg)
             ppg_l = shard(ppg_l)
             vec = shard(vec)
@@ -292,7 +293,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             audio = shard(audio)
             audio_l = shard(audio_l)
             generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=\
-            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit,vec=vec, spk=spk_n, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio)
+            combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit,vec=vec, spk=spk_n, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng_e=step_key)
 
 
 

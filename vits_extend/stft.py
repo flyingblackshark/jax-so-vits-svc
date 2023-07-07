@@ -68,7 +68,7 @@ class TacotronSTFT(nn.Module):
         """
         hann_win = scipy.signal.get_window('hann',self.n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
-        spec = jax.scipy.signal.stft(y, fs=22050,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary="even")
+        spec = jax.scipy.signal.stft(y, fs=32000,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary="even")
         spec = spec[2]/scale
         real = jnp.real(spec)
         imag = jnp.imag(spec)

@@ -37,7 +37,7 @@ class TextEncoder(nn.Module):
             n_heads=self.n_heads,
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
-            p_dropout=self.p_dropout,)
+            p_dropout=self.p_dropout)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
     def __call__(self, x, x_lengths,v, f0,train=True):
         rng = self.make_rng('rnorms')
