@@ -207,10 +207,10 @@ class SynthesizerTrn(nn.Module):
 
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
 
-    def infer(self, ppg, pit, spk, ppg_l):
+    def infer(self, ppg, pit,vec, spk, ppg_l):
 
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l, f0=f0_to_coarse(pit),train=False)
+            ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=False)
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)
         o = self.dec(spk, z * ppg_mask, f0=pit,train=False)
         return o

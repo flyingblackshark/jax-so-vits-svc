@@ -192,7 +192,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         hp=hp)
         predict_key = jax.random.PRNGKey(1234)
         fake_audio = model.apply({'params': generator.params}, 
-                                 ppg_val, pit_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False,rngs={'rnorms':predict_key})
+                                 ppg_val, pit_val,vec_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False,rngs={'rnorms':predict_key})
         mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
         mel_real = stft.mel_spectrogram(audio.squeeze(1))
         mel_loss_val = jnp.mean(jnp.abs(mel_fake - mel_real))
@@ -213,6 +213,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         for val_ppg, val_ppg_l,val_vec, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
             val_ppg=shard(val_ppg)
             val_ppg_l=shard(val_ppg_l)
+            val_vec=shard(val_vec)
             val_pit=shard(val_pit)
             val_spk=shard(val_spk)
             val_audio=shard(val_audio)
