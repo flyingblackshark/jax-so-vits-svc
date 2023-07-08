@@ -10,6 +10,7 @@ import numpy as np
 import optax
 from jax import custom_vjp
 class SnakeBeta(nn.Module):
+    in_channels:int
     '''
     A modified Snake function which uses separate parameters for the magnitude of the periodic components
     Shape:
@@ -59,8 +60,8 @@ class SnakeBeta(nn.Module):
         SnakeBeta = x + 1/b * sin^2 (xa)
         '''
         no_div_by_zero = 0.000000001
-        alpha = self.param("alpha",nn.initializers.zeros,x.shape[-2])
-        beta = self.param("beta",nn.initializers.zeros,x.shape[-2])
+        alpha = self.param("alpha",nn.initializers.zeros,self.in_channels)
+        beta = self.param("beta",nn.initializers.zeros,self.in_channels)
 
         alpha = jnp.expand_dims(jnp.expand_dims(alpha,0),-1)  # line up with x to [B, C, T]
         beta = jnp.expand_dims(jnp.expand_dims(beta,0),-1)

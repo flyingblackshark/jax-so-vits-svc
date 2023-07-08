@@ -88,7 +88,7 @@ class Generator(nn.Module):
 
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False,dtype=jnp.float32)
-        self.activation_post = SnakeBeta()
+        self.activation_post = SnakeBeta(ch)
         # weight initialization
         self.ups = ups
         self.noise_convs = noise_convs
@@ -109,7 +109,7 @@ class Generator(nn.Module):
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
 
         for i in range(self.num_upsamples):
-            x = nn.leaky_relu(x, 0.1)
+            #x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
             # nsf
@@ -126,7 +126,7 @@ class Generator(nn.Module):
         # post conv
         
         #x = nn.leaky_relu(x)
-        x = self.activation_post(x.transpose(0,2,1)).transpose(0,2,1)
+        x = self.activation_post(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x
