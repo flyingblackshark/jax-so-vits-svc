@@ -1,4 +1,5 @@
-import os
+import os,sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import argparse
 import torch
@@ -55,5 +56,5 @@ if __name__ == "__main__":
     wavPath = args.wav
     ppgPath = args.ppg
 
-    whisper = load_model(os.path.join("whisper_pretrain", "medium.pt"))
+    whisper = load_model(os.path.join("whisper_pretrain", "large-v2.pt"))
     pred_ppg(whisper, wavPath, ppgPath)

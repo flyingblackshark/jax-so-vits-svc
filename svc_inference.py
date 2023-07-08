@@ -1,59 +1,81 @@
 import os
-import torch
-import argparse
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import flax
+from flax import linen as nn
+from jax.nn.initializers import normal as normal_init
+from flax.training import train_state
+import jax.numpy as jnp
+import jax
+from jax import random
 import numpy as np
+import optax
+import argparse
 
+from flax.training.train_state import TrainState
 from omegaconf import OmegaConf
 from scipy.io.wavfile import write
-from vits.models import SynthesizerInfer
+from vits.models import SynthesizerTrn
 from pitch import load_csv_pitch
-
-
-def load_svc_model(checkpoint_path, model):
-    assert os.path.isfile(checkpoint_path)
-    checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
-    saved_state_dict = checkpoint_dict["model_g"]
-    state_dict = model.state_dict()
-    new_state_dict = {}
-    for k, v in state_dict.items():
-        try:
-            new_state_dict[k] = saved_state_dict[k]
-        except:
-            print("%s is not in the checkpoint" % k)
-            new_state_dict[k] = v
-    model.load_state_dict(new_state_dict)
-    return model
-
+from flax.training import orbax_utils
+import orbax
 
 def main(args):
     if (args.ppg == None):
         args.ppg = "svc_tmp.ppg.npy"
         print(
-            f"Auto run : python whisper/inference.py -w {args.wave} -p {args.ppg}")
-        os.system(f"python whisper/inference.py -w {args.wave} -p {args.ppg}")
+            f"Auto run : python3 whisper/inference.py -w {args.wave} -p {args.ppg}")
+        os.system(f"python3 whisper/inference.py -w {args.wave} -p {args.ppg}")
 
     if (args.pit == None):
         args.pit = "svc_tmp.pit.csv"
         print(
-            f"Auto run : python pitch/inference.py -w {args.wave} -p {args.pit}")
-        os.system(f"python pitch/inference.py -w {args.wave} -p {args.pit}")
+            f"Auto run : python3 pitch/inference.py -w {args.wave} -p {args.pit}")
+        os.system(f"python3 pitch/inference.py -w {args.wave} -p {args.pit}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     hp = OmegaConf.load(args.config)
-    model = SynthesizerInfer(
-        hp.data.filter_length // 2 + 1,
-        hp.data.segment_size // hp.data.hop_length,
-        hp)
-    load_svc_model(args.model, model)
-    model.eval()
-    model.to(device)
+    def create_generator_state(): 
+        r"""Create the training state given a model class. """ 
+        rng = jax.random.PRNGKey(1234)
+        model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+        segment_size=hp.data.segment_size // hp.data.hop_length,
+        hp=hp)
+        
+
+        #tx = optax.lion(learning_rate=0.01, b1=hp.train.betas[0],b2=hp.train.betas[1])
+          
+        #(fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+        fake_ppg = jnp.ones((1,400,1280))
+        fake_vec = jnp.ones((1,400,256))
+        fake_spec = jnp.ones((1,513,400))
+        fake_ppg_l = jnp.ones((1))
+        fake_spec_l = jnp.ones((1))
+        fake_pit = jnp.ones((1,400))
+        fake_spk = jnp.ones((1,256))
+        params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
+        init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
+        
+        variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit,vec=fake_vec, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
+
+        state = TrainState.create(apply_fn=model.apply, tx=None,params=variables['params'])
+        
+        return state
+    generator_state = create_generator_state()
+    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
+    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    checkpoint_manager = orbax.checkpoint.CheckpointManager(
+        'chkpt/sovits5.0/', orbax_checkpointer, options)
+    if checkpoint_manager.latest_step() is not None:
+        target = {'model_g': generator_state, 'model_d': None}
+        step = checkpoint_manager.latest_step()  # step = 4
+        states=checkpoint_manager.restore(step,items=target)
+        #discriminator_state=states['model_d']
+        generator_state=states['model_g']
 
     spk = np.load(args.spk)
-    spk = torch.FloatTensor(spk)
-
     ppg = np.load(args.ppg)
     ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-    ppg = torch.FloatTensor(ppg)
 
     pit = load_csv_pitch(args.pit)
     print("pitch shift: ", args.shift)
@@ -71,85 +93,83 @@ def main(args):
         shift = 2 ** (shift / 12)
         pit = pit * shift
 
-    pit = torch.FloatTensor(pit)
-
     len_pit = pit.size()[0]
     len_ppg = ppg.size()[0]
     len_min = min(len_pit, len_ppg)
     pit = pit[:len_min]
     ppg = ppg[:len_min, :]
 
-    with torch.no_grad():
 
-        spk = spk.unsqueeze(0).to(device)
-        source = pit.unsqueeze(0).to(device)
-        source = model.pitch2source(source)
-        pitwav = model.source2wav(source)
-        write("svc_out_pit.wav", hp.data.sampling_rate, pitwav)
 
-        hop_size = hp.data.hop_length
-        all_frame = len_min
-        hop_frame = 10
-        out_chunk = 2500  # 25 S
-        out_index = 0
-        out_audio = []
-        has_audio = False
+    # spk = spk.unsqueeze(0).to(device)
+    # source = pit.unsqueeze(0).to(device)
+    # source = model.pitch2source(source)
+    # pitwav = model.source2wav(source)
+    # write("svc_out_pit.wav", hp.data.sampling_rate, pitwav)
 
-        while (out_index + out_chunk < all_frame):
-            has_audio = True
-            if (out_index == 0):  # start frame
-                cut_s = 0
-                cut_s_out = 0
-            else:
-                cut_s = out_index - hop_frame
-                cut_s_out = hop_frame * hop_size
+    # hop_size = hp.data.hop_length
+    # all_frame = len_min
+    # hop_frame = 10
+    # out_chunk = 2500  # 25 S
+    # out_index = 0
+    # out_audio = []
+    # has_audio = False
 
-            if (out_index + out_chunk + hop_frame > all_frame):  # end frame
-                cut_e = out_index + out_chunk
-                cut_e_out = 0
-            else:
-                cut_e = out_index + out_chunk + hop_frame
-                cut_e_out = -1 * hop_frame * hop_size
+    # while (out_index + out_chunk < all_frame):
+    #     has_audio = True
+    #     if (out_index == 0):  # start frame
+    #         cut_s = 0
+    #         cut_s_out = 0
+    #     else:
+    #         cut_s = out_index - hop_frame
+    #         cut_s_out = hop_frame * hop_size
 
-            sub_ppg = ppg[cut_s:cut_e, :].unsqueeze(0).to(device)
-            sub_pit = pit[cut_s:cut_e].unsqueeze(0).to(device)
-            sub_len = torch.LongTensor([cut_e - cut_s]).to(device)
-            sub_har = source[:, :, cut_s *
-                             hop_size:cut_e * hop_size].to(device)
-            sub_out = model.inference(sub_ppg, sub_pit, spk, sub_len, sub_har)
-            sub_out = sub_out[0, 0].data.cpu().detach().numpy()
+    #     if (out_index + out_chunk + hop_frame > all_frame):  # end frame
+    #         cut_e = out_index + out_chunk
+    #         cut_e_out = 0
+    #     else:
+    #         cut_e = out_index + out_chunk + hop_frame
+    #         cut_e_out = -1 * hop_frame * hop_size
 
-            sub_out = sub_out[cut_s_out:cut_e_out]
-            out_audio.extend(sub_out)
-            out_index = out_index + out_chunk
+    #     sub_ppg = ppg[cut_s:cut_e, :].unsqueeze(0).to(device)
+    #     sub_pit = pit[cut_s:cut_e].unsqueeze(0).to(device)
+    #     sub_len = torch.LongTensor([cut_e - cut_s]).to(device)
+    #     sub_har = source[:, :, cut_s *
+    #                         hop_size:cut_e * hop_size].to(device)
+    #     sub_out = model.inference(sub_ppg, sub_pit, spk, sub_len, sub_har)
+    #     sub_out = sub_out[0, 0].data.cpu().detach().numpy()
 
-        if (out_index < all_frame):
-            if (has_audio):
-                cut_s = out_index - hop_frame
-                cut_s_out = hop_frame * hop_size
-            else:
-                cut_s = 0
-                cut_s_out = 0
-            sub_ppg = ppg[cut_s:, :].unsqueeze(0).to(device)
-            sub_pit = pit[cut_s:].unsqueeze(0).to(device)
-            sub_len = torch.LongTensor([all_frame - cut_s]).to(device)
-            sub_har = source[:, :, cut_s * hop_size:].to(device)
-            sub_out = model.inference(sub_ppg, sub_pit, spk, sub_len, sub_har)
-            sub_out = sub_out[0, 0].data.cpu().detach().numpy()
+    #     sub_out = sub_out[cut_s_out:cut_e_out]
+    #     out_audio.extend(sub_out)
+    #     out_index = out_index + out_chunk
 
-            sub_out = sub_out[cut_s_out:]
-            out_audio.extend(sub_out)
-        out_audio = np.asarray(out_audio)
+    # if (out_index < all_frame):
+    #     if (has_audio):
+    #         cut_s = out_index - hop_frame
+    #         cut_s_out = hop_frame * hop_size
+    #     else:
+    #         cut_s = 0
+    #         cut_s_out = 0
+    #     sub_ppg = ppg[cut_s:, :].unsqueeze(0).to(device)
+    #     sub_pit = pit[cut_s:].unsqueeze(0).to(device)
+    #     sub_len = torch.LongTensor([all_frame - cut_s]).to(device)
+    #     sub_har = source[:, :, cut_s * hop_size:].to(device)
+    #     sub_out = model.inference(sub_ppg, sub_pit, spk, sub_len, sub_har)
+    #     sub_out = sub_out[0, 0].data.cpu().detach().numpy()
 
-    write("svc_out.wav", hp.data.sampling_rate, out_audio)
+    #     sub_out = sub_out[cut_s_out:]
+    #     out_audio.extend(sub_out)
+    # out_audio = np.asarray(out_audio)
+
+    #write("svc_out.wav", hp.data.sampling_rate, out_audio)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True,
                         help="yaml file for config.")
-    parser.add_argument('--model', type=str, required=True,
-                        help="path of model for evaluation")
+    # parser.add_argument('--model', type=str, required=True,
+    #                     help="path of model for evaluation")
     parser.add_argument('--wave', type=str, required=True,
                         help="Path of raw audio.")
     parser.add_argument('--spk', type=str, required=True,
