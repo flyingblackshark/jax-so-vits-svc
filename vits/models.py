@@ -192,8 +192,11 @@ class SynthesizerTrn(nn.Module):
 
     def __call__(self, ppg, pit, vec,spec, spk, ppg_l, spec_l,train=True):
         rng = self.make_rng('rnorms')
+        ppg_key,vec_key,slice_key , rng = jax.random.split(rng,4)
+        ppg = ppg + jax.random.normal(ppg_key,ppg.shape) * 1  # Perturbation
+        vec = vec + jax.random.normal(vec_key,vec.shape) * 2  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2norm(spk,axis=1)),-1)
-        slice_key , rng = jax.random.split(rng,2)
+        
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
@@ -208,7 +211,9 @@ class SynthesizerTrn(nn.Module):
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
 
     def infer(self, ppg, pit,vec, spk, ppg_l):
-
+        rng = self.make_rng('rnorms')
+        infer_key , rng = jax.random.split(rng)
+        ppg = ppg + jax.random.normal(infer_key,ppg.shape) * 0.0001  # Perturbation
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=False)
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)

@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import flax.linen as nn
 
-
+from vits.snake import SnakeBeta
 from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
@@ -88,6 +88,7 @@ class Generator(nn.Module):
 
         # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False,dtype=jnp.float32)
+        self.activation_post = SnakeBeta()
         # weight initialization
         self.ups = ups
         self.noise_convs = noise_convs
@@ -95,6 +96,8 @@ class Generator(nn.Module):
 
     def __call__(self, spk, x, f0,train=True):
         rng = self.make_rng('rnorms')
+        x_key , rng = jax.random.split(rng)
+        x = x + jax.random.normal(x_key,x.shape)
         # adapter
         x = self.adapter(x, spk)
         # nsf
@@ -121,7 +124,9 @@ class Generator(nn.Module):
                     xs += self.resblocks[i * self.num_kernels + j](x,train=train)
             x = xs / self.num_kernels
         # post conv
-        x = nn.leaky_relu(x)
+        
+        #x = nn.leaky_relu(x)
+        x = self.activation_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x

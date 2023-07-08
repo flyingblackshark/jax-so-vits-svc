@@ -6,7 +6,7 @@ import flax
 import jax
 from typing import Tuple
 from jax.nn.initializers import normal as normal_init
-
+from vits.snake import SnakeBeta
 
 class AMPBlock(nn.Module):
     channels:int
@@ -25,12 +25,15 @@ class AMPBlock(nn.Module):
         ]
         # total number of conv layers
         self.num_layers = len(self.convs1) + len(self.convs2)
-
+        self.activations = [SnakeBeta() for _ in range(self.num_layers) ]
     def __call__(self, x,train=True):
-        for c1, c2 in zip(self.convs1, self.convs2):
-            xt = nn.leaky_relu(x,0.1)
+        acts1, acts2 = self.activations[::2], self.activations[1::2]
+        for c1, c2,a1,a2 in zip(self.convs1, self.convs2, acts1, acts2):
+            #xt = nn.leaky_relu(x,0.1)
+            xt = a1(x.transpose(0,2,1)).transpose(0,2,1)
             xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
-            xt = nn.leaky_relu(xt,0.1)
+            #xt = nn.leaky_relu(xt,0.1)
+            xt = a2(xt.transpose(0,2,1)).transpose(0,2,1)
             xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
             x = xt + x
         return x
