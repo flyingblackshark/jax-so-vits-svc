@@ -1,7 +1,4 @@
-Not working yet...
-
-
-
+Works but the sound quality is very poor
 
 
 
