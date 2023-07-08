@@ -19,14 +19,22 @@ from vits.models import SynthesizerTrn
 from pitch import load_csv_pitch
 from flax.training import orbax_utils
 import orbax
+from flax.training.common_utils import shard
+
+
 
 def main(args):
+
     if (args.ppg == None):
         args.ppg = "svc_tmp.ppg.npy"
         print(
             f"Auto run : python3 whisper/inference.py -w {args.wave} -p {args.ppg}")
         os.system(f"python3 whisper/inference.py -w {args.wave} -p {args.ppg}")
-
+    if (args.vec == None):
+        args.vec = "svc_tmp.vec.npy"
+        print(
+            f"Auto run : python hubert/inference.py -w {args.wave} -v {args.vec}")
+        os.system(f"python3 hubert/inference.py -w {args.wave} -v {args.vec}")
     if (args.pit == None):
         args.pit = "svc_tmp.pit.csv"
         print(
@@ -43,7 +51,7 @@ def main(args):
         hp=hp)
         
 
-        #tx = optax.lion(learning_rate=0.01, b1=hp.train.betas[0],b2=hp.train.betas[1])
+        tx = optax.lion(learning_rate=0.01, b1=hp.train.betas[0],b2=hp.train.betas[1])
           
         #(fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
         fake_ppg = jnp.ones((1,400,1280))
@@ -58,7 +66,7 @@ def main(args):
         
         variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit,vec=fake_vec, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
-        state = TrainState.create(apply_fn=model.apply, tx=None,params=variables['params'])
+        state = TrainState.create(apply_fn=SynthesizerTrn.apply, tx=tx,params=variables['params'])
         
         return state
     generator_state = create_generator_state()
@@ -76,8 +84,10 @@ def main(args):
     spk = np.load(args.spk)
     ppg = np.load(args.ppg)
     ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-
+    vec = np.load(args.vec)
+    vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
     pit = load_csv_pitch(args.pit)
+    pit = np.array(pit)
     print("pitch shift: ", args.shift)
     if (args.shift == 0):
         pass
@@ -93,14 +103,50 @@ def main(args):
         shift = 2 ** (shift / 12)
         pit = pit * shift
 
-    len_pit = pit.size()[0]
-    len_ppg = ppg.size()[0]
+    len_pit = pit.shape[0]
+    len_ppg = ppg.shape[0]
     len_min = min(len_pit, len_ppg)
     pit = pit[:len_min]
+    vec = vec[:len_min, :]
     ppg = ppg[:len_min, :]
-
-
-
+    pad_to_device_num = (8 - len_min%8)
+    len_min = len_min + pad_to_device_num
+    pit = jnp.pad(pit,[(0,pad_to_device_num)])
+    vec = jnp.pad(vec,[(0,pad_to_device_num),(0,0)])
+    ppg = jnp.pad(ppg,[(0,pad_to_device_num),(0,0)])
+    pit = jnp.stack(jnp.split(pit,8))
+    vec = jnp.stack(jnp.split(vec,8))
+    ppg = jnp.stack(jnp.split(ppg,8))
+    spk = jnp.asarray(spk)
+    spk = jnp.expand_dims(spk,0)
+    spk = jnp.broadcast_to(spk,[8,256])
+    len_min = len_min/8
+    len_min = jnp.asarray([len_min])
+    len_min = jnp.broadcast_to(len_min,[8])
+    @jax.pmap
+    def parallel_infer(pit_i,ppg_i,spk_i,vec_i,len_min_i):
+        model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+            segment_size=hp.data.segment_size // hp.data.hop_length,
+            hp=hp,train=False)
+        rng = jax.random.PRNGKey(1234)
+        params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
+        init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
+        pit_i=jnp.expand_dims(pit_i,0)
+        ppg_i=jnp.expand_dims(ppg_i,0)
+        spk_i=jnp.expand_dims(spk_i,0)
+        vec_i=jnp.expand_dims(vec_i,0)
+        len_min_i=jnp.expand_dims(len_min_i,0)
+        out_audio = model.apply( {'params': generator_state.params},ppg_i,pit_i,vec_i,spk_i,len_min_i,method=SynthesizerTrn.infer,rngs=init_rngs)
+        return out_audio
+        #out_audio = np.asarray(out_audio)
+    print(ppg.shape)
+    print(pit.shape)
+    print(spk.shape)
+    print(vec.shape)
+    print(len_min.shape)
+    frags = parallel_infer(pit,ppg,spk,vec,len_min)
+    out_audio = jnp.reshape(frags,[frags.shape[0]*frags.shape[1]*frags.shape[2]*frags.shape[3]])
+    #out_audio = jnp.concatenate(frags,0)
     # spk = spk.unsqueeze(0).to(device)
     # source = pit.unsqueeze(0).to(device)
     # source = model.pitch2source(source)
@@ -159,8 +205,8 @@ def main(args):
 
     #     sub_out = sub_out[cut_s_out:]
     #     out_audio.extend(sub_out)
-    # out_audio = np.asarray(out_audio)
-
+    out_audio = np.asarray(out_audio)
+    write("svc_out.wav", 32000, out_audio)
     #write("svc_out.wav", hp.data.sampling_rate, out_audio)
 
 
@@ -176,6 +222,8 @@ if __name__ == '__main__':
                         help="Path of speaker.")
     parser.add_argument('--ppg', type=str,
                         help="Path of content vector.")
+    parser.add_argument('--vec', type=str,
+                        help="Path of hubert vector.")
     parser.add_argument('--pit', type=str,
                         help="Path of pitch csv file.")
     parser.add_argument('--shift', type=int, default=0,
