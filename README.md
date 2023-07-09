@@ -1,7 +1,10 @@
-Works but the sound quality is very poor
-
-
-
-
-
-QQ讨论群：771728973
+# SO-VITS-SVC 5.0 IN JAX
+## First Step
+Generate or copy your data_svc folder from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0) to this project 
+## Second Step (Prepare)
+	pip install -r requirements.txt
+	sudo apt install -y libsndfile1 ffmpeg
+## Third Step (Train)
+	python3 svc_trainer.py
+## Fourth Step (Inference)
+	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav
