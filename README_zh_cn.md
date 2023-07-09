@@ -1,4 +1,5 @@
 # SO-VITS-SVC 5.0 IN JAX
+以下教程针对谷歌TPU v2-8/v3-8
 ## 第一步
 利用你的CPU或者GPU生成data_svc训练集，或者直接迁移[so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)的训练集
 ## 配置环境
@@ -8,3 +9,5 @@
 	python3 svc_trainer.py
 ## 推理
 	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav
+
+### 讨论QQ群 771728973
