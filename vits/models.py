@@ -13,7 +13,7 @@ import optax
 from vits import attentions
 from vits import commons
 from vits import modules
-#from vits.modules_grl import SpeakerClassifier
+from vits.modules_grl import SpeakerClassifier
 from vits.utils import f0_to_coarse
 from vits_decoder.generator import Generator
 
@@ -167,10 +167,10 @@ class SynthesizerTrn(nn.Module):
             3,
             0.1
         )
-        # self.speaker_classifier = SpeakerClassifier(
-        #     self.hp.vits.hidden_channels,
-        #     self.hp.vits.spk_dim,
-        # )
+        self.speaker_classifier = SpeakerClassifier(
+            self.hp.vits.hidden_channels,
+            self.hp.vits.spk_dim,
+        )
         self.enc_q = PosteriorEncoder(
             self.spec_channels,
             self.hp.vits.inter_channels,
@@ -208,7 +208,12 @@ class SynthesizerTrn(nn.Module):
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,reverse=False,train=train)
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk,reverse=True,train=train)
 
-        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
+        def gradient_reversal(x):
+            zeros = -x + jax.lax.stop_gradient(x)
+            return zeros + jax.lax.stop_gradient(x)
+        
+        spk_preds = self.speaker_classifier(gradient_reversal(x))
+        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds
 
     def infer(self, ppg, pit,vec, spk, ppg_l):
         rng = self.make_rng('rnorms')
