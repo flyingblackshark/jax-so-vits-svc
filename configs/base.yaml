@@ -1,5 +1,5 @@
 train:
-  mode: "jax" # torch or jax
+  mode: "torch" # torch or jax
   model: "sovits"
   seed: 1234
   epochs: 10000
