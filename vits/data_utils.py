@@ -15,7 +15,8 @@ def load_filepaths(filename, split="|"):
 
 
 class TextAudioSpeakerSet(torch.utils.data.Dataset):
-    def __init__(self, filename, hparams):
+    def __init__(self, filename, hparams,mode = "torch"):
+        self.mode = mode
         self.items = load_filepaths(filename)
         self.max_wav_value = hparams.max_wav_value
         self.sampling_rate = hparams.sampling_rate
@@ -78,7 +79,12 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         use = item[6]
 
         wav = self.read_wav(wav)
-        spe = torch.load(spe)
+        if self.mode == "torch":
+            spe = torch.load(spe)
+        elif self.mode == "jax":
+            spe = np.load(spe)
+        else:
+            raise ValueError("Unknown mode")
 
         pit = np.load(pit)
         vec = np.load(vec)
@@ -87,6 +93,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
         spk = np.load(spk)
 
+        spe = torch.FloatTensor(spe)
         pit = torch.FloatTensor(pit)
         vec = torch.FloatTensor(vec)
         ppg = torch.FloatTensor(ppg)

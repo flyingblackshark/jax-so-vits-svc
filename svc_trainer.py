@@ -1,12 +1,6 @@
 import argparse
-# import torch
-# import torch.multiprocessing as mp
 from omegaconf import OmegaConf
-
 from vits_extend.train import train
-
-#torch.backends.cudnn.benchmark = True
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -25,18 +19,4 @@ if __name__ == '__main__':
     assert hp.data.hop_length == 320, \
         'hp.data.hop_length must be equal to 320, got %d' % hp.data.hop_length
 
-    args.num_gpus = 1
-    train(0, args, args.checkpoint_path, hp, hp_str)
-    # torch.manual_seed(hp.train.seed)
-    # if torch.cuda.is_available():
-    #     torch.cuda.manual_seed(hp.train.seed)
-    #     args.num_gpus = torch.cuda.device_count()
-    #     print('Batch size per GPU :', hp.train.batch_size)
-
-    #     if args.num_gpus > 1:
-    #         mp.spawn(train, nprocs=args.num_gpus,
-    #                  args=(args, args.checkpoint_path, hp, hp_str,))
-    #     else:
-    #         train(0, args, args.checkpoint_path, hp, hp_str)
-    # else:
-    #     print('No GPU find!')
+    train(args, args.checkpoint_path, hp)

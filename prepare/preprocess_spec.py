@@ -1,73 +1,96 @@
-import os
-#import torch
+import sys,os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import torch
 import argparse
-
-
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
 from vits import utils
 from omegaconf import OmegaConf
-import jax
-import numpy as np
-import jax.numpy as jnp
-import flax.linen as nn
-from functools import partial
-import scipy
-@partial(jax.jit, static_argnums=(1,2,3),backend='cpu')
-def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
-    hann_win = scipy.signal.get_window('hann',n_fft)
-    scale = np.sqrt(1.0/hann_win.sum()**2)
-    spec = jax.scipy.signal.stft(y,fs=22050, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary="even")
-    spec = spec[2]/scale
-    real = jnp.real(spec)
-    imag = jnp.imag(spec)
-    spec = jnp.sqrt(real**2+imag**2+(1e-6))
+
+def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
+    if torch.min(y) < -1.0:
+        print("min value is ", torch.min(y))
+    if torch.max(y) > 1.0:
+        print("max value is ", torch.max(y))
+
+    global hann_window
+    dtype_device = str(y.dtype) + "_" + str(y.device)
+    wnsize_dtype_device = str(win_size) + "_" + dtype_device
+    if wnsize_dtype_device not in hann_window:
+        hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(
+            dtype=y.dtype, device=y.device
+        )
+
+    y = torch.nn.functional.pad(
+        y.unsqueeze(1),
+        (int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2)),
+        mode="reflect",
+    )
+    y = y.squeeze(1)
+
+    spec = torch.stft(
+        y,
+        n_fft,
+        hop_length=hop_size,
+        win_length=win_size,
+        window=hann_window[wnsize_dtype_device],
+        center=center,
+        pad_mode="reflect",
+        normalized=False,
+        onesided=True,
+        return_complex=False,
+    )
+
+    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
     return spec
 
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)
     assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
     audio_norm = audio / hps.max_wav_value
-    audio_norm = jnp.asarray(audio_norm)
-    audio_norm = jnp.expand_dims(audio_norm,axis=0)
+    audio_norm = audio_norm.unsqueeze(0)
     n_fft = hps.filter_length
     sampling_rate = hps.sampling_rate
     hop_size = hps.hop_length
     win_size = hps.win_length
-    spec = spectrogram_jax(
-        audio_norm, n_fft, hop_size, win_size)
-    spec = jnp.squeeze(spec, 0)
-    jnp.save(specname,spec)
+    spec = spectrogram_torch(
+        audio_norm, n_fft, sampling_rate, hop_size, win_size, center=False)
+    spec = torch.squeeze(spec, 0)
+    torch.save(spec, specname)
 
+
+def process_file(file):
+    if file.endswith(".wav"):
+        file = file[:-4]
+        compute_spec(hps.data, f"{wavPath}/{spks}/{file}.wav", f"{spePath}/{spks}/{file}.pt")
+
+def process_files_with_thread_pool(wavPath, spks, max_workers):
+    files = os.listdir(f"./{wavPath}/{spks}")
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        list(tqdm(executor.map(process_file, files), total=len(files)))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.description = 'please enter embed parameter ...'
     parser.add_argument("-w", "--wav", help="wav", dest="wav")
     parser.add_argument("-s", "--spe", help="spe", dest="spe")
+    parser.add_argument("-t", "--thread_count", help="thread count to process, set 0 to use all cpu cores", dest="thread_count", type=int, default=1)
     args = parser.parse_args()
     print(args.wav)
     print(args.spe)
-    os.makedirs(args.spe)
+    if not os.path.exists(args.spe):
+        os.makedirs(args.spe)
     wavPath = args.wav
     spePath = args.spe
     hps = OmegaConf.load("./configs/base.yaml")
 
     for spks in os.listdir(wavPath):
         if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{spePath}/{spks}")
-            print(f">>>>>>>>>>{spks}<<<<<<<<<<")
-            for file in os.listdir(f"./{wavPath}/{spks}"):
-                if file.endswith(".wav"):
-                    # print(file)
-                    file = file[:-4]
-                    compute_spec(hps.data, f"{wavPath}/{spks}/{file}.wav", f"{spePath}/{spks}/{file}.pt")
-        else:
-            file = spks
-            if file.endswith(".wav"):
-                # print(file)
-                file = file[:-4]
-                compute_spec(hps.data, f"{wavPath}/{file}.wav", f"{spePath}/{file}.pt")
-
-
-
-
-
+            if not os.path.exists(f"./{spePath}/{spks}"):
+                os.makedirs(f"./{spePath}/{spks}")
+            if args.thread_count == 0:
+                process_num = os.cpu_count()
+            else:
+                process_num = args.thread_count
+            process_files_with_thread_pool(wavPath, spks, process_num)

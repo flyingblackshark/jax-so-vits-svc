@@ -1,10 +1,8 @@
+
 import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
-from jax.nn.initializers import normal as normal_init
-from jax.nn.initializers import constant as constant_init
-from .snake import snake
 
 import scipy
 class DiscriminatorR(nn.Module):
@@ -39,7 +37,7 @@ class DiscriminatorR(nn.Module):
         x = x.squeeze(1)
         hann_win = scipy.signal.get_window('hann',n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
-        x = jax.scipy.signal.stft(x,fs=32000, nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,padded=False,boundary="even") #[B, F, TT, 2]
+        x = jax.scipy.signal.stft(x,nfft=n_fft, noverlap=win_length-hop_length, nperseg=win_length,padded=False,boundary="even") #[B, F, TT, 2]
         mag = jnp.abs(x[2]/scale)
         return mag
 

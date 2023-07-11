@@ -1,10 +1,7 @@
 import os
 import time
 import logging
-import math
 import tqdm
-import itertools
-import traceback
 import flax
 import jax
 import optax
@@ -26,56 +23,46 @@ from functools import partial
 from typing import Any, Tuple
 from flax.training.train_state import TrainState
 from flax.training.common_utils import shard, shard_prng_key
-import torch
 from flax.training import orbax_utils
-
+total_steps=400000
 PRNGKey = jnp.ndarray
+def create_generator_state(rng, model_cls,hp,trainloader): 
+    r"""Create the training state given a model class. """ 
+    model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
+    segment_size=hp.data.segment_size // hp.data.hop_length,
+    hp=hp)
+    
+    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,decay_rate=hp.train.lr_decay)
+    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+        
+    (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+    params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
+    init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
+    
+    variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit,vec=fake_vec, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: Any
+    state = TrainState.create(apply_fn=model.apply, tx=tx, 
+        params=variables['params'])
+    
+    return state
+def create_discriminator_state(rng, model_cls,hp,trainloader): 
+    r"""Create the training state given a model class. """ 
+    model = model_cls(hp)
+    (fake_ppg,fake_ppg_l,fake_pit,fake_vec,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+    fake_audio = fake_audio[:,:,:hp.data.segment_size]
+    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps, decay_rate=hp.train.lr_decay)
+    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+    
+    variables = model.init(rng, fake_audio)
 
-def train(rank, args, chkpt_path, hp, hp_str):
+    state = TrainState.create(apply_fn=model.apply, tx=tx, 
+        params=variables['params'])
+    
+    return state
+def train(args,chkpt_path, hp):
     num_devices = jax.device_count()
-    total_steps = 180000
-    #@partial(jax.pmap, static_broadcasted_argnums=(1))
-    def create_generator_state(rng, model_cls): 
-        r"""Create the training state given a model class. """ 
-        model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
-        segment_size=hp.data.segment_size // hp.data.hop_length,
-        hp=hp)
-        
-        exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
-                                                      decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
-                                                      staircase=False)
-        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
-          
-        (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
-        params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
-        init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
-        
-        variables = model.init(init_rngs, ppg=fake_ppg, pit=fake_pit,vec=fake_vec, spec=fake_spec, spk=fake_spk, ppg_l=fake_ppg_l, spec_l=fake_spec_l,train=False)
+    
 
-        state = TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])
-        
-        return state
-    #@partial(jax.pmap, static_broadcasted_argnums=(1))
-    def create_discriminator_state(rng, model_cls): 
-        r"""Create the training state given a model class. """ 
-        model = model_cls(hp=hp)
-        (fake_ppg,fake_ppg_l,fake_pit,fake_vec,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
-        fake_audio = fake_audio[:,:,:8000]
-        exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=total_steps,
-                                                      decay_rate=hp.train.lr_decay, transition_begin=int(total_steps*0.25),
-                                                      staircase=False)
-        tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
-       
-        variables = model.init(rng, fake_audio)
-
-        state = TrainState.create(apply_fn=model.apply, tx=tx, 
-            params=variables['params'])
-        
-        return state
     @partial(jax.pmap, axis_name='num_devices')
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
@@ -140,18 +127,19 @@ def train(rank, args, chkpt_path, hp, hp_str):
             # Loss
             loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5  + spk_loss * 2
 
-            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
+            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss,spk_loss)
 
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True,holomorphic=False,allow_int=False,reduce_axes=["num_devices"])
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss,spk_loss)), grads_g = grad_fn(generator_state.params)
 
         # Average across the devices.
-        #grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
+        grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
         loss_g = jax.lax.pmean(loss_g, axis_name='num_devices')
         loss_m = jax.lax.pmean(mel_loss, axis_name='num_devices')
         loss_s = jax.lax.pmean(stft_loss, axis_name='num_devices')
         loss_k = jax.lax.pmean(loss_kl_f, axis_name='num_devices')
         loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
+        loss_i = jax.lax.pmean(spk_loss, axis_name='num_devices')
 
         new_generator_state = generator_state.apply_gradients(
             grads=grads_g)
@@ -170,17 +158,17 @@ def train(rank, args, chkpt_path, hp, hp_str):
             return loss_d
         
         # Generate data with the Generator, critique it with the Discriminator.
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=False,holomorphic=False,allow_int=False,reduce_axes=["num_devices"])
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
 
         loss_d, grads_d = grad_fn(discriminator_state.params)
 
         # Average cross the devices.
-        #grads_d = jax.lax.pmean(grads_d, axis_name='num_devices')
+        grads_d = jax.lax.pmean(grads_d, axis_name='num_devices')
         loss_d = jax.lax.pmean(loss_d, axis_name='num_devices')
 
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
-        return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
+        return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss,loss_i
     @partial(jax.pmap, axis_name='num_devices')         
     def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
         stft = TacotronSTFT(filter_length=hp.data.filter_length,
@@ -234,34 +222,30 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     combine_step_key,key_generator, key_discriminator, key = jax.random.split(key, 4)
-    # key_generator = shard_prng_key(key_generator)
-    # key_discriminator = shard_prng_key(key_discriminator)
-    # combine_step_key = shard_prng_key(combine_step_key)
     
     init_epoch = 1
     step = 0
-    if rank == 0:
-        pth_dir = os.path.join(hp.log.pth_dir, args.name)
-        log_dir = os.path.join(hp.log.log_dir, args.name)
-        os.makedirs(pth_dir, exist_ok=True)
-        os.makedirs(log_dir, exist_ok=True)
+    #if rank == 0:
+    pth_dir = os.path.join(hp.log.pth_dir, args.name)
+    log_dir = os.path.join(hp.log.log_dir, args.name)
+    os.makedirs(pth_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(os.path.join(log_dir, '%s-%d.log' % (args.name, time.time()))),
-                logging.StreamHandler()
-            ]
-        )
-        logger = logging.getLogger()
-        writer = MyWriter(hp, log_dir)
-        valloader = create_dataloader_eval(hp)
-    
-    trainloader = create_dataloader_train(hp, args.num_gpus, rank)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(log_dir, '%s-%d.log' % (args.name, time.time()))),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger()
+    writer = MyWriter(hp, log_dir)
+    valloader = create_dataloader_eval(hp)
+    trainloader = create_dataloader_train(hp)
 
-    discriminator_state = create_discriminator_state(key_discriminator, Discriminator)
-    generator_state = create_generator_state(key_generator, SynthesizerTrn)
+    discriminator_state = create_discriminator_state(key_discriminator, Discriminator,hp,trainloader)
+    generator_state = create_generator_state(key_generator, SynthesizerTrn,hp,trainloader)
 
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
@@ -279,11 +263,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
 
     for epoch in range(init_epoch, hp.train.epochs):
 
-        if rank == 0:
-            loader = tqdm.tqdm(trainloader, desc='Loading train data')
-        else:
-            loader = trainloader
-
+        loader = tqdm.tqdm(trainloader, desc='Loading train data')
         for ppg, ppg_l,vec, pit, spk, spec, spec_l, audio, audio_l in loader:
             step_key,combine_step_key=jax.random.split(combine_step_key)
             step_key = shard_prng_key(step_key)
@@ -296,24 +276,21 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=\
+            generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss,loss_i=\
             combine_step(generator_state, discriminator_state,ppg=ppg,pit=pit,vec=vec, spk=spk_n, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng_e=step_key)
-
-
 
             step += 1
 
-            loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = \
-            jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
-            if rank == 0 and step % hp.log.info_interval == 0:
-
+            loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss,loss_i = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0],loss_i[0]])
+            if step % hp.log.info_interval == 0:
                 writer.log_training(
                     loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
-                logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f  | step %d" % (
-                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, step))
-        if rank == 0 and epoch % hp.log.eval_interval == 0:
+                logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
+                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,loss_i, step))
+                
+        if epoch % hp.log.eval_interval == 0:
             validate(generator_state)
-        if rank == 0 and epoch % hp.log.save_interval == 0:
+        if epoch % hp.log.save_interval == 0:
             generator_state_s = flax.jax_utils.unreplicate(generator_state)
             discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
             ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
