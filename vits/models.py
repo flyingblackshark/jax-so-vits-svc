@@ -13,7 +13,7 @@ import optax
 from vits import attentions
 from vits import commons
 from vits import modules
-#from vits.modules_grl import SpeakerClassifier
+from vits.modules_grl import SpeakerClassifier
 from vits.utils import f0_to_coarse
 from vits_decoder.generator import Generator
 
@@ -167,10 +167,10 @@ class SynthesizerTrn(nn.Module):
             3,
             0.1
         )
-        # self.speaker_classifier = SpeakerClassifier(
-        #     self.hp.vits.hidden_channels,
-        #     self.hp.vits.spk_dim,
-        # )
+        self.speaker_classifier = SpeakerClassifier(
+            self.hp.vits.hidden_channels,
+            self.hp.vits.spk_dim,
+        )
         self.enc_q = PosteriorEncoder(
             self.spec_channels,
             self.hp.vits.inter_channels,
@@ -192,8 +192,11 @@ class SynthesizerTrn(nn.Module):
 
     def __call__(self, ppg, pit, vec,spec, spk, ppg_l, spec_l,train=True):
         rng = self.make_rng('rnorms')
+        ppg_key,vec_key,slice_key , rng = jax.random.split(rng,4)
+        ppg = ppg + jax.random.normal(ppg_key,ppg.shape) * 1  # Perturbation
+        vec = vec + jax.random.normal(vec_key,vec.shape) * 2  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2norm(spk,axis=1)),-1)
-        slice_key , rng = jax.random.split(rng,2)
+        
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
@@ -205,10 +208,17 @@ class SynthesizerTrn(nn.Module):
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,reverse=False,train=train)
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk,reverse=True,train=train)
 
-        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)
+        def gradient_reversal(x):
+            zeros = -x + jax.lax.stop_gradient(x)
+            return zeros + jax.lax.stop_gradient(x)
+        
+        spk_preds = self.speaker_classifier(gradient_reversal(x))
+        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds
 
     def infer(self, ppg, pit,vec, spk, ppg_l):
-
+        rng = self.make_rng('rnorms')
+        infer_key , rng = jax.random.split(rng)
+        ppg = ppg + jax.random.normal(infer_key,ppg.shape) * 0.0001  # Perturbation
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
             ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=False)
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)

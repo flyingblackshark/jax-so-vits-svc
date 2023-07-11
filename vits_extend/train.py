@@ -100,8 +100,11 @@ def train(rank, args, chkpt_path, hp, hp_str):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
+            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds = generator_state.apply_fn(
                 {'params': params},  ppg, pit,vec, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+            
+            spk_loss = optax.cosine_similarity(spk, spk_preds).mean()
+            
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -135,7 +138,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
             # Loss
-            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5 # + spk_loss * 2
+            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5  + spk_loss * 2
 
             return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 

@@ -1,11 +1,19 @@
 import copy
-import random
 from typing import Optional, Tuple
+import random
+
+from sklearn.cluster import KMeans
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as t_func
+import torch.nn.functional as F
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
+
+URLS = {
+    "hubert-discrete": "https://github.com/bshall/hubert/releases/download/v0.2/hubert-discrete-96b248c5.pt",
+    "hubert-soft": "https://github.com/bshall/hubert/releases/download/v0.2/hubert-soft-35d9f29f.pt",
+    "kmeans100": "https://github.com/bshall/hubert/releases/download/v0.2/kmeans100-50f36a95.pt",
+}
 
 
 class Hubert(nn.Module):
@@ -36,7 +44,7 @@ class Hubert(nn.Module):
         return x, mask
 
     def encode(
-            self, x: torch.Tensor, layer: Optional[int] = None
+        self, x: torch.Tensor, layer: Optional[int] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         x = self.feature_extractor(x)
         x = self.feature_projection(x.transpose(1, 2))
@@ -67,9 +75,22 @@ class HubertSoft(Hubert):
 
     @torch.inference_mode()
     def units(self, wav: torch.Tensor) -> torch.Tensor:
-        wav = t_func.pad(wav, ((400 - 320) // 2, (400 - 320) // 2))
+        wav = F.pad(wav, ((400 - 320) // 2, (400 - 320) // 2))
         x, _ = self.encode(wav)
         return self.proj(x)
+
+
+class HubertDiscrete(Hubert):
+    def __init__(self, kmeans):
+        super().__init__(504)
+        self.kmeans = kmeans
+
+    @torch.inference_mode()
+    def units(self, wav: torch.Tensor) -> torch.LongTensor:
+        wav = F.pad(wav, ((400 - 320) // 2, (400 - 320) // 2))
+        x, _ = self.encode(wav, layer=7)
+        x = self.kmeans.predict(x.squeeze().cpu().numpy())
+        return torch.tensor(x, dtype=torch.long, device=wav.device)
 
 
 class FeatureExtractor(nn.Module):
@@ -85,13 +106,13 @@ class FeatureExtractor(nn.Module):
         self.conv6 = nn.Conv1d(512, 512, 2, 2, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = t_func.gelu(self.norm0(self.conv0(x)))
-        x = t_func.gelu(self.conv1(x))
-        x = t_func.gelu(self.conv2(x))
-        x = t_func.gelu(self.conv3(x))
-        x = t_func.gelu(self.conv4(x))
-        x = t_func.gelu(self.conv5(x))
-        x = t_func.gelu(self.conv6(x))
+        x = F.gelu(self.norm0(self.conv0(x)))
+        x = F.gelu(self.conv1(x))
+        x = F.gelu(self.conv2(x))
+        x = F.gelu(self.conv3(x))
+        x = F.gelu(self.conv4(x))
+        x = F.gelu(self.conv5(x))
+        x = F.gelu(self.conv6(x))
         return x
 
 
@@ -123,13 +144,13 @@ class PositionalConvEmbedding(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x.transpose(1, 2))
-        x = t_func.gelu(x[:, :, :-1])
+        x = F.gelu(x[:, :, :-1])
         return x.transpose(1, 2)
 
 
 class TransformerEncoder(nn.Module):
     def __init__(
-            self, encoder_layer: nn.TransformerEncoderLayer, num_layers: int
+        self, encoder_layer: nn.TransformerEncoderLayer, num_layers: int
     ) -> None:
         super(TransformerEncoder, self).__init__()
         self.layers = nn.ModuleList(
@@ -138,11 +159,11 @@ class TransformerEncoder(nn.Module):
         self.num_layers = num_layers
 
     def forward(
-            self,
-            src: torch.Tensor,
-            mask: torch.Tensor = None,
-            src_key_padding_mask: torch.Tensor = None,
-            output_layer: Optional[int] = None,
+        self,
+        src: torch.Tensor,
+        mask: torch.Tensor = None,
+        src_key_padding_mask: torch.Tensor = None,
+        output_layer: Optional[int] = None,
     ) -> torch.Tensor:
         output = src
         for layer in self.layers[:output_layer]:
@@ -153,11 +174,11 @@ class TransformerEncoder(nn.Module):
 
 
 def _compute_mask(
-        shape: Tuple[int, int],
-        mask_prob: float,
-        mask_length: int,
-        device: torch.device,
-        min_masks: int = 0,
+    shape: Tuple[int, int],
+    mask_prob: float,
+    mask_length: int,
+    device: torch.device,
+    min_masks: int = 0,
 ) -> torch.Tensor:
     batch_size, sequence_length = shape
 
@@ -207,16 +228,69 @@ def _compute_mask(
     return mask
 
 
+def hubert_discrete(
+    pretrained: bool = True,
+    progress: bool = True,
+) -> HubertDiscrete:
+    r"""HuBERT-Discrete from `"A Comparison of Discrete and Soft Speech Units for Improved Voice Conversion"`.
+    Args:
+        pretrained (bool): load pretrained weights into the model
+        progress (bool): show progress bar when downloading model
+    """
+    kmeans = kmeans100(pretrained=pretrained, progress=progress)
+    hubert = HubertDiscrete(kmeans)
+    if pretrained:
+        checkpoint = torch.hub.load_state_dict_from_url(
+            URLS["hubert-discrete"], progress=progress
+        )
+        consume_prefix_in_state_dict_if_present(checkpoint["hubert"], "module.")
+        hubert.load_state_dict(checkpoint["hubert"])
+        hubert.eval()
+    return hubert
+
+
 def hubert_soft(
-        path: str,
+    path: str
 ) -> HubertSoft:
     r"""HuBERT-Soft from `"A Comparison of Discrete and Soft Speech Units for Improved Voice Conversion"`.
     Args:
-        path (str): path of a pretrained model
+        pretrained (bool): load pretrained weights into the model
+        progress (bool): show progress bar when downloading model
     """
     hubert = HubertSoft()
     checkpoint = torch.load(path)
-    consume_prefix_in_state_dict_if_present(checkpoint, "module.")
-    hubert.load_state_dict(checkpoint)
-    hubert.eval()
+    consume_prefix_in_state_dict_if_present(checkpoint["hubert"], "module.")
+    hubert.load_state_dict(checkpoint["hubert"])
+    #hubert.eval()
+    # if pretrained:
+    #     checkpoint = torch.hub.load_state_dict_from_url(
+    #         URLS["hubert-soft"], progress=progress
+    #     )
+    #     consume_prefix_in_state_dict_if_present(checkpoint["hubert"], "module.")
+    #     hubert.load_state_dict(checkpoint["hubert"])
+    
     return hubert
+
+
+def _kmeans(
+    num_clusters: int, pretrained: bool = True, progress: bool = True
+) -> KMeans:
+    kmeans = KMeans(num_clusters)
+    if pretrained:
+        checkpoint = torch.hub.load_state_dict_from_url(
+            URLS[f"kmeans{num_clusters}"], progress=progress
+        )
+        kmeans.__dict__["n_features_in_"] = checkpoint["n_features_in_"]
+        kmeans.__dict__["_n_threads"] = checkpoint["_n_threads"]
+        kmeans.__dict__["cluster_centers_"] = checkpoint["cluster_centers_"].numpy()
+    return kmeans
+
+
+def kmeans100(pretrained: bool = True, progress: bool = True) -> KMeans:
+    r"""
+    k-means checkpoint for HuBERT-Discrete with 100 clusters.
+    Args:
+        pretrained (bool): load pretrained weights into the model
+        progress (bool): show progress bar when downloading model
+    """
+    return _kmeans(100, pretrained, progress)
