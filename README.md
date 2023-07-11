@@ -1,3 +1,4 @@
+English | (中文教程)[https://github.com/flyingblackshark/jax-so-vits-svc-5.0/blob/Main-5/README_zh_cn.md]
 # SO-VITS-SVC 5.0 IN JAX
 The following tutorials are for Google TPU v2-8/v3-8
 
