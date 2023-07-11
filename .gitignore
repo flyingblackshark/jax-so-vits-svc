@@ -5,3 +5,6 @@ logs
 chkpt
 .vscode
 data_svc.zip
+whisper_pretrain/
+hubert_pretrain/
+speaker_pretrain/
