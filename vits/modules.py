@@ -23,7 +23,6 @@ class WN(nn.Module):
         in_layers = []
         res_skip_layers = []
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
-        output_dense_layers = []
         if self.gin_channels != 0:
             self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
         for i in range(self.n_layers):
@@ -45,10 +44,8 @@ class WN(nn.Module):
 
             res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
             res_skip_layers.append(res_skip_layer)
-            output_dense_layers.append(nn.Dense(self.hidden_channels))
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
-        self.output_dense_layers = output_dense_layers
         
        
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
@@ -77,10 +74,8 @@ class WN(nn.Module):
                 x = (x + res_acts)
                 x = jnp.where(x_mask,x,0)
                 output = output + res_skip_acts[:,self.hidden_channels:,:]
-                output = self.output_dense_layers[i](output.transpose(0,2,1)).transpose(0,2,1)
             else:
                 output = output + res_skip_acts
-                output = self.output_dense_layers[i](output.transpose(0,2,1)).transpose(0,2,1)
         output = jnp.where(x_mask,output,0)
         return output
 
