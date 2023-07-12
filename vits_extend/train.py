@@ -90,7 +90,7 @@ def train(args,chkpt_path, hp):
             fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds = generator_state.apply_fn(
                 {'params': params},  ppg, pit,vec, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             
-            spk_loss = optax.cosine_similarity(spk, spk_preds).mean()
+            spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
