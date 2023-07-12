@@ -164,13 +164,6 @@ class Encoder(nn.Module):
         for i in range(self.n_layers):
             attn_layers.append(
                 nn.SelfAttention(self.n_heads,qkv_features=self.hidden_channels,out_features=self.hidden_channels,dropout_rate=self.p_dropout)
-                # MultiHeadAttention(
-                #     self.hidden_channels,
-                #     self.hidden_channels,
-                #     self.n_heads,
-                #     p_dropout=self.p_dropout,
-                #     window_size=self.window_size,
-                # )
             )
             norm_layers_1.append(nn.LayerNorm())
             ffn_layers.append(
@@ -210,14 +203,8 @@ class FFN(nn.Module):
     filter_channels:int
     kernel_size:int
     p_dropout:float=0.0
-    #activation:str=None
-    #causal:bool=False
 
     def setup(self):
-        # if self.causal:
-        #     self.padding = "CAUSAL"
-        # else:
-        #     self.padding = "SAME"
         self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.drop = nn.Dropout(self.p_dropout)
@@ -225,10 +212,7 @@ class FFN(nn.Module):
     def __call__(self, x, x_mask,train=True):
         x = jnp.where(x_mask,x,0)
         x = self.conv_1(x.transpose(0,2,1)).transpose(0,2,1)
-        #if self.activation == "gelu":
         x = nn.gelu(x)
-        # else:
-        #     x = nn.relu(x)
         x = self.drop(x.transpose(0,2,1),deterministic=not train).transpose(0,2,1)
         x = jnp.where(x_mask,x,0)
         x = self.conv_2(x.transpose(0,2,1)).transpose(0,2,1)

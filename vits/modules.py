@@ -53,7 +53,6 @@ class WN(nn.Module):
        
     def __call__(self, x, x_mask, g=None,train=True, **kwargs):
         output = jnp.zeros_like(x)
-        #n_channels_tensor = [self.hidden_channels]
 
         if g is not None:
             g = self.cond_layer(g.transpose(0,2,1)).transpose(0,2,1)
@@ -66,8 +65,6 @@ class WN(nn.Module):
             else:
                 g_l = jnp.zeros_like(x_in)
 
-            #acts = commons.fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
-            #n_channels_int = n_channels[0]
             in_act = x_in + g_l
             t_act = nn.tanh(in_act[:, :self.hidden_channels, :])
             s_act = nn.sigmoid(in_act[:, self.hidden_channels:, :])
@@ -125,25 +122,6 @@ class ResidualCouplingLayer(nn.Module):
         self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
-        # x0, x1 = jnp.split(x, 2, 1)
-        # h = self.pre(x0) * x_mask
-        # h = self.enc(h, x_mask, g=g)
-        # stats = self.post(h) * x_mask
-        # if not self.mean_only:
-        #     m, logs = jnp.split(stats, 2, 1)
-        # else:
-        #     m = stats
-        #     logs = jnp.zeros_like(m)
-
-        # if not reverse:
-        #     x1 = m + x1 * jnp.exp(logs) * x_mask
-        #     x = jnp.concatenate([x0, x1], 1)
-        #     logdet = jnp.sum(logs, [1,2])
-        #     return x, logdet
-        # else:
-        #     x1 = (x1 - m) * jnp.exp(-logs) * x_mask
-        #     x = jnp.concatenate([x0, x1], 1)
-        # return x
         speaker = self.snac(jnp.expand_dims(g,-1).transpose(0,2,1)).transpose(0,2,1)
         speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
         x0, x1 = jnp.split(x, 2 , axis=1)

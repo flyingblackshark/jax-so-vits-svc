@@ -20,7 +20,6 @@ from vits.losses import kl_loss
 import jax.numpy as jnp
 import orbax.checkpoint
 from functools import partial
-from typing import Any, Tuple
 from flax.training.train_state import TrainState
 from flax.training.common_utils import shard, shard_prng_key
 from flax.training import orbax_utils
