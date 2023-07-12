@@ -131,11 +131,6 @@ def main(args):
         rng = jax.random.PRNGKey(1234)
         params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
         init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
-        pit_i=jnp.expand_dims(pit_i,0)
-        ppg_i=jnp.expand_dims(ppg_i,0)
-        spk_i=jnp.expand_dims(spk_i,0)
-        vec_i=jnp.expand_dims(vec_i,0)
-        len_min_i=jnp.expand_dims(len_min_i,0)
         out_audio = model.apply( {'params': generator_state.params},ppg_i,pit_i,vec_i,spk_i,len_min_i,method=SynthesizerTrn.infer,rngs=init_rngs)
         return out_audio
         #out_audio = np.asarray(out_audio)
@@ -144,6 +139,11 @@ def main(args):
     print(spk.shape)
     print(vec.shape)
     print(len_min.shape)
+    pit=shard(pit)
+    ppg=shard(ppg)
+    spk=shard(spk)
+    vec=shard(vec)
+    len_min=shard(len_min)
     frags = parallel_infer(pit,ppg,spk,vec,len_min)
     out_audio = jnp.reshape(frags,[frags.shape[0]*frags.shape[1]*frags.shape[2]*frags.shape[3]])
     #out_audio = jnp.concatenate(frags,0)
