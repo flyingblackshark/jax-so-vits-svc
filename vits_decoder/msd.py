@@ -23,7 +23,8 @@ class ScaleDiscriminator(nn.Module):
         fmap = []
         for l in self.convs:
             x = l(x.transpose(0,2,1)).transpose(0,2,1)
-            x = nn.leaky_relu(x, 0.1)
+            #x = nn.leaky_relu(x, 0.1)
+            x = nn.swish(x)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         fmap.append(x)

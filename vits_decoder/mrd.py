@@ -25,7 +25,8 @@ class DiscriminatorR(nn.Module):
         x = jnp.expand_dims(x,1)
         for l in self.convs:
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-            x = nn.leaky_relu(x, self.LRELU_SLOPE)
+            #x = nn.leaky_relu(x, self.LRELU_SLOPE)
+            x = nn.swish(x)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
         fmap.append(x)
