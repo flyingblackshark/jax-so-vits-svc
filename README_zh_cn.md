@@ -4,6 +4,7 @@
 
 ## 配置环境
 	pip install -r requirements.txt
+	pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 	sudo apt install -y libsndfile1 ffmpeg
 ## 制作数据集
 从 [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)下载HuBERT\Whisper\Speaker预训练模型
