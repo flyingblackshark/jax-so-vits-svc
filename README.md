@@ -5,7 +5,7 @@ The following tutorials are for Google TPU v2-8/v3-8
 ## Prepare Environment
 	pip install -r requirements.txt
 	pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-	sudo apt install -y libsndfile1 ffmpeg
+	sudo apt update && sudo apt install -y libsndfile1 ffmpeg
 ## Prepare Dataset
 Dwonload pretrained models from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
 Generate or copy your data_svc folder from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
