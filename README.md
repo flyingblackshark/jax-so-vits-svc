@@ -10,6 +10,7 @@ The following tutorials are for Google TPU v2-8/v3-8
 Dwonload pretrained models from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
 Generate or copy your data_svc folder from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
 ## Train Your Model
+	python3 prepare/preprocess_train.py
 	python3 svc_trainer.py
 ## Inference
 	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav

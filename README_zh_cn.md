@@ -10,6 +10,7 @@
 从 [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)下载HuBERT\Whisper\Speaker预训练模型
 利用你的CPU或者GPU生成data_svc训练集，或者直接从[so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)的训练集迁移
 ## 开始训练
+	python3 prepare/preprocess_train.py
 	python3 svc_trainer.py
 ## 推理
 	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav
