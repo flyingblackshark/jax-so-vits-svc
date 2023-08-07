@@ -9,3 +9,5 @@ whisper_pretrain/
 hubert_pretrain/
 speaker_pretrain/
 hubert-soft-35d9f29f.pt
+hubert_base.pt
+rmvpe.pt
