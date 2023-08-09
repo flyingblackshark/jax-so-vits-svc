@@ -9,6 +9,7 @@ The following tutorials are for Google TPU v2-8/v3-8
 ## Prepare Dataset
 Dwonload pretrained models from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
 Generate or copy your data_svc folder from [so-vits-svc-5.0](https://github.com/PlayVoice/so-vits-svc-5.0)
+Replace HuBERT with [latest model](https://github.com/bshall/hubert/releases/download/v0.2/hubert-soft-35d9f29f.pt)
 ## Train Your Model
 	python3 prepare/preprocess_train.py
 	python3 svc_trainer.py
