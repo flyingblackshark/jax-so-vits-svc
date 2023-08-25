@@ -1,7 +1,8 @@
 English | [中文教程](https://github.com/flyingblackshark/jax-so-vits-svc-5.0/blob/Main-5/README_zh_cn.md)
 # SO-VITS-SVC 5.0 IN JAX
 The following tutorials are for Google TPU v2-8/v3-8
-
+# Acknowledgements
+This project is supported by Cloud TPUs from Google's [TPU Research Cloud](https://sites.research.google/trc/about/) (TRC).
 ## Prepare Environment
 	pip install -r requirements.txt
 	pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html

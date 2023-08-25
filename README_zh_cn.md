@@ -1,7 +1,8 @@
 [English](https://github.com/flyingblackshark/jax-so-vits-svc-5.0/blob/Main-5/README.md) | 中文教程
 # SO-VITS-SVC 5.0 IN JAX
 以下教程针对谷歌TPU v2-8/v3-8
-
+# 告知
+此项目基于 [TPU Research Cloud](https://sites.research.google/trc/about/) (TRC).
 ## 配置环境
 	pip install -r requirements.txt
 	pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
