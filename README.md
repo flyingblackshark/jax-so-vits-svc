@@ -16,3 +16,5 @@ Replace HuBERT with [latest model](https://github.com/bshall/hubert/releases/dow
 	python3 svc_trainer.py
 ## Inference
 	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav
+## Join us
+	[Discord Channel](https://discord.gg/mrGUhMVWUM)

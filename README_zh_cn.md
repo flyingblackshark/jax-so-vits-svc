@@ -17,4 +17,5 @@
 ## 推理
 	python3 svc_inference.py --config configs/base.yaml --spk xxx.spk.npy --wave test.wav
 
-### 讨论QQ群 771728973
+## 讨论
+	QQ群 771728973 或者 [Discord](https://discord.gg/mrGUhMVWUM)
