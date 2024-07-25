@@ -1,43 +1,38 @@
 import sys,os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np
 import argparse
-import torch
 import librosa
-
-from tqdm import tqdm
-from multiprocessing import Pool
-from hubert import hubert_model
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import torch
+from transformers import FlaxAutoModel
+import jax
+import jax.numpy as jnp
+hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
 
 def load_audio(file: str, sr: int = 16000):
     x, sr = librosa.load(file, sr=sr)
     return x
 
 
-def load_model(path, device):
-    model = hubert_model.hubert_soft(path)
-    model.eval()
-    #model.half()
-    model.to(device)
-    return model
+# def load_model(path, device):
+#     model = jax.jit(hubert_model)(path)
+#     return model
 
 
-def pred_vec(model, wavPath, vecPath, device):
+def pred_vec(wavPath, vecPath, device):
     feats = load_audio(wavPath)
-    feats = torch.from_numpy(feats).to(device)
-    feats = feats[None, None, :]#.half()
-    with torch.no_grad():
-        vec = model.units(feats).squeeze().data.cpu().float().numpy()
-        # print(vec.shape)   # [length, dim=256] hop=320
-        np.save(vecPath, vec, allow_pickle=False)
+    # feats = torch.from_numpy(feats).to(device)
+    feats = feats[None, :]#.half()
+    print(feats.shape)
+    vec = hubert_model(feats).last_hidden_state
+    #vec = model.units(feats).squeeze().data.cpu().float().numpy()
+    print(vec.shape)   # [length, dim=256] hop=320
+    jnp.save(vecPath, vec, allow_pickle=False)
 
 
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
-        pred_vec(hubert, f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+        pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
 
 
 if __name__ == "__main__":
@@ -57,28 +52,28 @@ if __name__ == "__main__":
 
     #assert torch.cuda.is_available()
     device = "cpu"
-    hubert = load_model("hubert-soft-35d9f29f.pt", device)
+    #hubert = load_model("hubert-soft-35d9f29f.pt", device)
 
     for spks in os.listdir(wavPath):
         if os.path.isdir(f"./{wavPath}/{spks}"):
             os.makedirs(f"./{vecPath}/{spks}", exist_ok=True)
             print(f">>>>>>>>>>{spks}<<<<<<<<<<")
-            if args.thread_count == 1:
-                for file in os.listdir(f"./{wavPath}/{spks}"):
-                    if file.endswith(".wav"):
-                        print(file)
-                        file = file[:-4]
-                        pred_vec(hubert, f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
-            else:
-                if args.thread_count == 0:
-                    process_num = os.cpu_count()
-                else:
-                    process_num = args.thread_count
-                with ThreadPoolExecutor(max_workers=process_num) as executor:
-                    futures = [executor.submit(process_file, file) for file in os.listdir(f"./{wavPath}/{spks}")]
-                    for future in tqdm(as_completed(futures), total=len(futures)):
-                        pass
-                # with Pool(processes=process_num) as pool:
-                #     results = [pool.apply_async(process_file, (file,)) for file in os.listdir(f"./{wavPath}/{spks}")]
-                #     for result in tqdm(results, total=len(results)):
-                #         result.wait()
+            #if args.thread_count == 1:
+            for file in os.listdir(f"./{wavPath}/{spks}"):
+                if file.endswith(".wav"):
+                    print(file)
+                    file = file[:-4]
+                    pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+            # else:
+            #     if args.thread_count == 0:
+            #         process_num = os.cpu_count()
+            #     else:
+            #         process_num = args.thread_count
+            #     with ThreadPoolExecutor(max_workers=process_num) as executor:
+            #         futures = [executor.submit(process_file, file) for file in os.listdir(f"./{wavPath}/{spks}")]
+            #         for future in tqdm(as_completed(futures), total=len(futures)):
+            #             pass
+            #     with Pool(processes=process_num) as pool:
+            #         results = [pool.apply_async(process_file, (file,)) for file in os.listdir(f"./{wavPath}/{spks}")]
+            #         for result in tqdm(results, total=len(results)):
+            #             result.wait()
