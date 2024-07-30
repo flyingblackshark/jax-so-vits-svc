@@ -18,16 +18,11 @@ if __name__ == "__main__":
         for file in os.listdir(f"./{rootPath}/{spks}"):
             if file.endswith(".wav"):
                 file = file[:-4]
-                #path_spk = f"./data_svc/speaker/{spks}/{file}.spk.npy"
                 path_wave = f"./data_svc/waves-32k/{spks}/{file}.wav"
                 path_spec = f"./data_svc/specs/{spks}/{file}.pt.npy"
                 path_pitch = f"./data_svc/pitch/{spks}/{file}.pit.npy"
                 path_hubert = f"./data_svc/hubert/{spks}/{file}.vec.npy"
-                #path_whisper = f"./data_svc/whisper/{spks}/{file}.ppg.npy"
                 has_error = 0
-                # if not os.path.isfile(path_spk):
-                #     print_error(path_spk)
-                #     has_error = 1
                 if not os.path.isfile(path_wave):
                     print_error(path_wave)
                     has_error = 1
@@ -40,9 +35,6 @@ if __name__ == "__main__":
                 if not os.path.isfile(path_hubert):
                     print_error(path_hubert)
                     has_error = 1
-                # if not os.path.isfile(path_whisper):
-                #     print_error(path_whisper)
-                #     has_error = 1
                 if has_error == 0:
                     all_items.append(
                         f"{path_wave}|{path_spec}|{path_pitch}|{path_hubert}")

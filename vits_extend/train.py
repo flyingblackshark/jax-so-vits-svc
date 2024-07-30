@@ -1,3 +1,4 @@
+import functools
 import os
 import time
 import logging
@@ -23,17 +24,25 @@ from functools import partial
 from flax.training.train_state import TrainState
 from flax.training.common_utils import shard, shard_prng_key
 from flax.training import orbax_utils
+from jax.experimental import mesh_utils
 PRNGKey = jnp.ndarray
-def create_generator_state(rng, model_cls,hp,trainloader): 
+
+device_mesh = mesh_utils.create_device_mesh(jax.local_device_count())
+        
+
+
+def create_generator_state(rng,hp): 
     r"""Create the training state given a model class. """ 
-    model = model_cls(spec_channels=hp.data.filter_length // 2 + 1,
+    model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
     segment_size=hp.data.segment_size // hp.data.hop_length,
     hp=hp)
     
     #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
     tx = optax.lion(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
-        
-    (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+    def init_fn(x, model):
+        variables = model.init(init_rngs, x)
+        return variables['params']
+    abstract_variables = jax.eval_shape(functools.partial(init_fn, model=model, ), global_batch_array)
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     
@@ -243,7 +252,7 @@ def train(args,chkpt_path, hp):
     trainloader = create_dataloader_train(hp)
 
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator,hp,trainloader)
-    generator_state = create_generator_state(key_generator, SynthesizerTrn,hp,trainloader)
+    generator_state = create_generator_state(key_generator,hp,trainloader)
 
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
