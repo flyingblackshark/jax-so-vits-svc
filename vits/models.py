@@ -29,7 +29,6 @@ class TextEncoder(nn.Module):
     p_dropout:float
     def setup(self):
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-        self.hub = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32,embedding_init=nn.initializers.normal(1.0))
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
@@ -39,24 +38,16 @@ class TextEncoder(nn.Module):
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-    def __call__(self, x, x_lengths,v, f0,train=True):
-        rng = self.make_rng('rnorms')
-        normal_key,rng = jax.random.split(rng,2)
-        x = x.transpose(0,2,1)  # [b, h, t]
+    def __call__(self, x, x_lengths, f0,train=True):
+        x = x.transpose(0,2,1)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
-        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
-        v = v.transpose(0,2,1)  # [b, h, t]
-        v = self.hub(v.transpose(0,2,1)).transpose(0,2,1) 
-        x = jnp.where(x_mask,x,0)
-        v = jnp.where(x_mask,v,0)
-        x = x + v + self.pit(f0).transpose(0,2,1)
+        x = self.pre(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        x = x + self.pit(f0).transpose(0,2,1)
         x = self.enc(jnp.where(x_mask,x,0), x_mask,train=train)
-        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
-        stats = jnp.where(x_mask,stats,0)
+        stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1) * x_mask
         m, logs = jnp.split(stats,2, axis=1)
-        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs)) 
-        z = jnp.where(x_mask,z,0)
-        return z, m, logs, x_mask, x
+        z = (m + jax.random.normal(self.make_rng('rnorms'),m.shape) * jnp.exp(logs)) * x_mask
+        return z, m, logs, x_mask
 
 
 class ResidualCouplingBlock(nn.Module):
@@ -135,28 +126,13 @@ class PosteriorEncoder(nn.Module):
         z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs))
         z = jnp.where(x_mask,z,0)
         return z, m, logs, x_mask
-def l2norm(t, axis=1, eps=1e-12):
-    """Performs L2 normalization of inputs over specified axis.
-
-    Args:
-      t: jnp.ndarray of any shape
-      axis: the dimension to reduce, default -1
-      eps: small value to avoid division by zero. Default 1e-12
-    Returns:
-      normalized array of same shape as t
-
-
-    """
-    denom = jnp.clip(jnp.linalg.norm(t, ord=2, axis=axis, keepdims=True), eps)
-    out = t/denom
-    return (out)
 class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
     hp:tuple
     train: bool = True
     def setup(self):
-        self.emb_g = nn.Dense(self.hp.vits.gin_channels,dtype=jnp.float32)
+        self.emb_g = nn.Embed(self.hp.data.n_speakers,self.hp.vits.gin_channels)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,
@@ -190,30 +166,26 @@ class SynthesizerTrn(nn.Module):
         )
         self.dec = Generator(hp=self.hp)
 
-    def __call__(self, ppg, pit, vec,spec, spk, ppg_l, spec_l,train=True):
-        rng = self.make_rng('rnorms')
-        ppg_key,vec_key,slice_key , rng = jax.random.split(rng,4)
-        ppg = ppg + jax.random.normal(ppg_key,ppg.shape) * 1  # Perturbation
-        vec = vec + jax.random.normal(vec_key,vec.shape) * 2  # Perturbation
-        g = jnp.expand_dims(self.emb_g(l2norm(spk,axis=1)),-1)
+    def __call__(self, ppg, pit, spec,spk, ppg_l, spec_l,train=True):
+        g = self.emb_g(spk).transpose(0,2,1)
         
-        z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=train)
-        z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
+        z_ptemp, m_p, logs_p, _ = self.enc_p(
+            ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
+        z, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
         z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
-            z_q, pit, spec_l, self.segment_size,rng=slice_key)
-        audio = self.dec(spk, z_slice, pit_slice,train=train)
+            z, pit, spec_l, self.segment_size,rng=self.make_rng('rnorms'))
+        audio = self.dec(z_slice, pit_slice,train=train)
 
         # SNAC to flow
-        z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,reverse=False,train=train)
-        z_r, logdet_r = self.flow(z_p, spec_mask, g=spk,reverse=True,train=train)
+        z_p = self.flow(z, spec_mask, g=g,reverse=False,train=train)
+        #z_r, logdet_r = self.flow(z_p, spec_mask, g=g,reverse=True,train=train)
 
         # def gradient_reversal(x):
         #     zeros = -x + jax.lax.stop_gradient(x)
         #     return zeros + jax.lax.stop_gradient(x)
         
         # spk_preds = self.speaker_classifier(gradient_reversal(x))
-        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)#,spk_preds
+        return audio, ids_slice, spec_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
     def infer(self, ppg, pit,vec, spk, ppg_l):
         rng = self.make_rng('rnorms')

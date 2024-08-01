@@ -11,7 +11,9 @@ if __name__ == "__main__":
 
     rootPath = "./data_svc/waves-32k/"
     all_items = []
+    i=0
     for spks in os.listdir(f"./{rootPath}"):
+        i+=1
         if not os.path.isdir(f"./{rootPath}/{spks}"):
             continue
         print(f"./{rootPath}/{spks}")
@@ -37,7 +39,7 @@ if __name__ == "__main__":
                     has_error = 1
                 if has_error == 0:
                     all_items.append(
-                        f"{path_wave}|{path_spec}|{path_pitch}|{path_hubert}")
+                        f"{path_wave}|{path_spec}|{path_pitch}|{path_hubert}|{i}")
 
     random.shuffle(all_items)
     valids = all_items[:8]

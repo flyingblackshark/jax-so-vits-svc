@@ -8,7 +8,7 @@ from vits.data_utils import TextAudioSpeakerSet
 
 def create_dataloader_train(hps):
     collate_fn = TextAudioSpeakerCollate()
-    train_dataset = TextAudioSpeakerSet(hps.data.training_files, hps.data , hps.train.mode)
+    train_dataset = TextAudioSpeakerSet(hps.data.training_files, hps.data)
     train_loader = DataLoader(
         train_dataset,
         batch_size=hps.train.batch_size,
@@ -23,7 +23,7 @@ def create_dataloader_train(hps):
 
 def create_dataloader_eval(hps):
     collate_fn = TextAudioSpeakerCollate()
-    eval_dataset = TextAudioSpeakerSet(hps.data.validation_files, hps.data , hps.train.mode)
+    eval_dataset = TextAudioSpeakerSet(hps.data.validation_files, hps.data)
     eval_loader = DataLoader(
         eval_dataset,
         num_workers=0,

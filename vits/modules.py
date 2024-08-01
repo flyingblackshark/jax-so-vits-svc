@@ -84,8 +84,11 @@ class WN(nn.Module):
 class Flip(nn.Module):
     def __call__(self, x, *args, reverse=False, **kwargs):
         x = jnp.flip(x, 1)
-        logdet = jnp.zeros(x.shape[0])
-        return x, logdet
+        if not reverse:
+            logdet = jnp.zeros(x.shape[0])
+            return x, logdet
+        else:
+            return x
 
 
 class ResidualCouplingLayer(nn.Module):
@@ -110,21 +113,17 @@ class ResidualCouplingLayer(nn.Module):
             self.kernel_size,
             self.dilation_rate,
             self.n_layers,
+            gin_channels = self.gin_channels,
             p_dropout=self.p_dropout
         )
         self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
-        # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
-        speaker = self.snac(jnp.expand_dims(g,-1).transpose(0,2,1)).transpose(0,2,1)
-        speaker_m, speaker_v = jnp.split(speaker,2, axis=1)  # (B, half_channels, 1)
+
         x0, x1 = jnp.split(x, 2 , axis=1)
-        # x0 norm
-        x0_norm = (x0 - speaker_m) * jnp.where(x_mask,jnp.exp(-speaker_v),0)
-        h = jnp.where(x_mask,self.pre(x0_norm.transpose(0,2,1)).transpose(0,2,1),0)
-        # don't use global condition
-        h = self.enc(h, x_mask,train=train)
+        h = self.pre(x0.transpose(0,2,1)).transpose(0,2,1) * x_mask
+        h = self.enc(h, x_mask,g=g,train=train)
         stats = jnp.where(x_mask,self.post(h.transpose(0,2,1)).transpose(0,2,1),0)
         if not self.mean_only:
             m, logs = jnp.split(stats, 2, 1)
@@ -133,26 +132,11 @@ class ResidualCouplingLayer(nn.Module):
             logs = jnp.zeros_like(m)
 
         if not reverse:
-            # x1 norm before affine xform
-            x1_norm = (x1 - speaker_m) * jnp.exp(-speaker_v)
-            x1_norm = jnp.where(x_mask,x1_norm,0)
-            x1 = (m + x1_norm * jnp.exp(logs)) 
-            x1 = jnp.where(x_mask,x1,0)
+            x1 = m + x1 * jnp.exp(logs) * x_mask
             x = jnp.concatenate([x0, x1], 1)
-            # speaker var to logdet
-            logs = jnp.where(x_mask,logs,0)
-            logdet = jnp.sum(logs, [1, 2]) - jnp.sum(
-                jnp.where(x_mask,jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])),0), [1, 2])
+            logdet = jnp.sum(logs, [1, 2])
             return x, logdet
         else:
-            x1 = (x1 - m) * jnp.exp(-logs)
-            x1 = jnp.where(x_mask,x1,0)
-            # x1 denorm before output
-            x1 = (speaker_m + x1 * jnp.exp(speaker_v))
-            x1 = jnp.where(x_mask,x1,0)
+            x1 = (x1 - m) * jnp.exp(-logs) * x_mask
             x = jnp.concatenate([x0, x1], 1)
-            logs = jnp.where(x_mask,logs,0)
-            # speaker var to logdet
-            logdet = jnp.sum(logs, [1, 2]) + jnp.sum(
-                 jnp.where(x_mask,jnp.broadcast_to(speaker_v,(speaker_v.shape[0], speaker_v.shape[1], logs.shape[-1])),0), [1, 2])
-            return x, logdet
+            return x

@@ -12,27 +12,23 @@ def load_audio(file: str, sr: int = 16000):
     x, sr = librosa.load(file, sr=sr)
     return x
 
-
-# def load_model(path, device):
-#     model = jax.jit(hubert_model)(path)
-#     return model
-
-
-def pred_vec(wavPath, vecPath, device):
+def pred_vec(wavPath, vecPath):
     feats = load_audio(wavPath)
     # feats = torch.from_numpy(feats).to(device)
     feats = feats[None, :]#.half()
     print(feats.shape)
+    
     vec = hubert_model(feats).last_hidden_state
     #vec = model.units(feats).squeeze().data.cpu().float().numpy()
     print(vec.shape)   # [length, dim=256] hop=320
-    jnp.save(vecPath, vec, allow_pickle=False)
+    vec = vec.squeeze(0)
+    #jnp.save(vecPath, vec, allow_pickle=False)
 
 
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
-        pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+        pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec")
 
 
 if __name__ == "__main__":
@@ -50,10 +46,6 @@ if __name__ == "__main__":
     wavPath = args.wav
     vecPath = args.vec
 
-    #assert torch.cuda.is_available()
-    device = "cpu"
-    #hubert = load_model("hubert-soft-35d9f29f.pt", device)
-
     for spks in os.listdir(wavPath):
         if os.path.isdir(f"./{wavPath}/{spks}"):
             os.makedirs(f"./{vecPath}/{spks}", exist_ok=True)
@@ -63,7 +55,7 @@ if __name__ == "__main__":
                 if file.endswith(".wav"):
                     print(file)
                     file = file[:-4]
-                    pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+                    pred_vec(f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec")
             # else:
             #     if args.thread_count == 0:
             #         process_num = os.cpu_count()

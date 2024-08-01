@@ -9,27 +9,27 @@ from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from vits import commons
-class SpeakerAdapter(nn.Module):
-    speaker_dim : int
-    adapter_dim : int
-    epsilon : int = 1e-5
-    def setup(self):
-        self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.),dtype=jnp.float32)
-        self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
+# class SpeakerAdapter(nn.Module):
+#     speaker_dim : int
+#     adapter_dim : int
+#     epsilon : int = 1e-5
+#     def setup(self):
+#         self.W_scale = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(1.),dtype=jnp.float32)
+#         self.W_bias = nn.Dense(features=self.adapter_dim,kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
 
 
-    def __call__(self, x, speaker_embedding):
-        x = x.transpose(0,2,1)
-        mean = x.mean(axis=-1, keepdims=True)
-        var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
-        std = jnp.sqrt(var + self.epsilon)
-        y = (x - mean) / std
-        scale = self.W_scale(speaker_embedding)
-        bias = self.W_bias(speaker_embedding)
-        y *= jnp.expand_dims(scale,1)
-        y += jnp.expand_dims(bias,1)
-        y = y.transpose(0,2,1)
-        return y
+#     def __call__(self, x, speaker_embedding):
+#         x = x.transpose(0,2,1)
+#         mean = x.mean(axis=-1, keepdims=True)
+#         var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
+#         std = jnp.sqrt(var + self.epsilon)
+#         y = (x - mean) / std
+#         scale = self.W_scale(speaker_embedding)
+#         bias = self.W_bias(speaker_embedding)
+#         y *= jnp.expand_dims(scale,1)
+#         y += jnp.expand_dims(bias,1)
+#         y = y.transpose(0,2,1)
+#         return y
 
 
 class Generator(nn.Module):
@@ -38,9 +38,7 @@ class Generator(nn.Module):
     def setup(self):
         self.num_kernels = len(self.hp.gen.resblock_kernel_sizes)
         self.num_upsamples = len(self.hp.gen.upsample_rates)
-        # speaker adaper, 256 should change by what speaker encoder you use
-        #self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
-        self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
+      
         # pre conv
         self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
         # nsf
@@ -94,17 +92,13 @@ class Generator(nn.Module):
         self.noise_convs = noise_convs
         self.resblocks = resblocks
 
-    def __call__(self, spk, x, f0,train=True):
-        rng = self.make_rng('rnorms')
-        x_key , rng = jax.random.split(rng)
-        x = x + jax.random.normal(x_key,x.shape)
-        # adapter
-        x = self.adapter(x, spk)
+    def __call__(self, x, f0,train=True):
+        x = x + jax.random.normal(self.make_rng('rnorms'),x.shape)
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
         f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
-        har_source = self.m_source(f0,rng)
+        har_source = self.m_source(f0,self.make_rng('rnorms'))
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
 
@@ -131,30 +125,7 @@ class Generator(nn.Module):
         x = nn.tanh(x) 
         return x
 
-    def eval(self, inference=False):
-        super(Generator, self).eval()
-        # don't remove weight norm while validation in training loop
-        if inference:
-            self.remove_weight_norm()
-
-    def pitch2source(self, f0):
-        f0 = f0[:, None]
-        f0 = self.f0_upsamp(f0).transpose(1, 2)  # [1,len,1]
-        har_source = self.m_source(f0)
-        har_source = har_source.transpose(1, 2)  # [1,1,len]
-        return har_source
-
-    def source2wav(self, audio):
-        MAX_WAV_VALUE = 32768.0
-        audio = audio.squeeze()
-        audio = MAX_WAV_VALUE * audio
-        audio = audio.clamp(min=-MAX_WAV_VALUE, max=MAX_WAV_VALUE-1)
-        audio = audio.short()
-        return audio.cpu().detach().numpy()
-
     def inference(self, spk, x, har_source):
-        # adapter
-        x = self.adapter(x, spk)
         x = self.conv_pre(x)
 
         for i in range(self.num_upsamples):
