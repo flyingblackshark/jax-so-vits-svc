@@ -2,15 +2,11 @@ import functools
 import os
 import time
 import logging
-import tqdm
-import flax
 import jax
 import optax
 import numpy as np
 import orbax
 from flax import linen as nn
-from vits_extend.dataloader import create_dataloader_train
-from vits_extend.dataloader import create_dataloader_eval
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
 from vits_extend.stft_loss import MultiResolutionSTFTLoss
@@ -22,18 +18,19 @@ import jax.numpy as jnp
 import orbax.checkpoint
 from functools import partial
 from flax.training.train_state import TrainState
-from flax.training.common_utils import shard, shard_prng_key
 from flax.training import orbax_utils
 from jax.experimental import mesh_utils
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from input_pipeline.dataset import get_dataset
+from jax.experimental.compilation_cache import compilation_cache as cc
+cc.set_cache_dir("./jax_cache")
 PRNGKey = jnp.ndarray
 
 device_mesh = mesh_utils.create_device_mesh((jax.local_device_count()))
 mesh = Mesh(devices=device_mesh, axis_names=('data'))
 def mesh_sharding(pspec: PartitionSpec) -> NamedSharding:
   return NamedSharding(mesh, pspec)
-x_sharding = mesh_sharding(PartitionSpec('data', None))
+x_sharding = mesh_sharding(PartitionSpec('data'))
 def create_generator_state(rng,hp): 
     r"""Create the training state given a model class. """ 
     model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
@@ -50,7 +47,7 @@ def create_generator_state(rng,hp):
         "spec":jnp.zeros((1,513,400)),
         "ppg_l":jnp.zeros((1),dtype=jnp.int32),
         "spec_l":jnp.zeros((1),dtype=jnp.int32),
-        "spk":jnp.ones((1,1),dtype=jnp.int32),
+        "spk":jnp.ones((1),dtype=jnp.int32),
     }
     
 
@@ -165,7 +162,7 @@ def train(args,hp):
     #writer = MyWriter(hp, log_dir)
     #valloader = create_dataloader_eval(hp)
     #trainloader = create_dataloader_train(hp)
-    trainloader = get_dataset()
+    #trainloader = get_dataset()
     discriminator_state,d_state_sharding = create_discriminator_state(key_discriminator,hp)
     generator_state,g_state_sharding = create_generator_state(key_generator,hp)
 
@@ -182,13 +179,13 @@ def train(args,hp):
     
     # discriminator_state = flax.jax_utils.replicate(discriminator_state)
     # generator_state = flax.jax_utils.replicate(generator_state)
-    @functools.partial(jax.jit, in_shardings=(g_state_sharding,d_state_sharding, x_sharding,x_sharding),
+    @functools.partial(jax.jit, in_shardings=(g_state_sharding,d_state_sharding, x_sharding,None),
                    out_shardings=(g_state_sharding,d_state_sharding))
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                        input,
+                        example_batch,
                        rng_e:PRNGKey):
-        ppg, ppg_l,vec, pit, spk, spec, spec_l, audio, audio_l = input
+        #audio_e,audio_l,pit,pit_l,ppg,ppg_l,spec,spec_l,spk = example_batch
         def loss_fn(params):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -200,12 +197,17 @@ def train(args,hp):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
-                {'params': params},  ppg, pit, spec, spk, ppg_l, spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+            fake_audio, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
+                {'params': params},  example_batch["hubert_feature"],
+                  example_batch["f0_feature"], 
+                  example_batch["spec_feature"],
+                    example_batch["speaker_id"], 
+                    example_batch["hubert_length"], 
+                    example_batch["spec_length"],train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             
             #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             
-            audio = commons.slice_segments(audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            audio = commons.slice_segments(jnp.expand_dims(example_batch["audio"],1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
@@ -235,10 +237,10 @@ def train(args,hp):
             feat_loss = feat_loss * 2
 
             # Kl Loss
-            loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
+            loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hp.train.c_kl
+            #loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
             # Loss
-            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5  #+ spk_loss * 2
+            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl  #+ spk_loss * 2
 
             return loss_g, (fake_audio,audio)
 
@@ -268,31 +270,31 @@ def train(args,hp):
         # Update the discriminator through gradient descent.
         #loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
-        return new_generator_state,new_discriminator_state,
-    for epoch in range(init_epoch, hp.train.epochs):
+        return new_generator_state,new_discriminator_state
+    data_iterator = get_dataset(hp)
+    example_batch = None
+    for step in range(init_epoch, hp.train.steps):
+        #loader = tqdm.tqdm(trainloader, desc='Loading train data')
+        #for input in loader:
+        step_key,combine_step_key=jax.random.split(combine_step_key)
+        example_batch = next(data_iterator)
+        print("ready a step")
+        generator_state,discriminator_state=combine_step(generator_state, discriminator_state,example_batch,step_key)
+        print("finish a step")
 
-        loader = tqdm.tqdm(trainloader, desc='Loading train data')
-        for input in loader:
-            step_key,combine_step_key=jax.random.split(combine_step_key)
-
-            with mesh:
-                generator_state,discriminator_state=combine_step(generator_state, discriminator_state,input,step_key)
-
-            step += 1
-
-            # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
-            # if step % hp.log.info_interval == 0:
-            #     writer.log_training(
-            #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
-            #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
-            #         loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,0., step))
-                
-        # if epoch % hp.log.eval_interval == 0:
-        #     validate(generator_state)
-        if epoch % hp.log.save_interval == 0:
-            generator_state_s = flax.jax_utils.unreplicate(generator_state)
-            discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
-            ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
-            save_args = orbax_utils.save_args_from_target(ckpt)
-            checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
+        # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
+        # if step % hp.log.info_interval == 0:
+        #     writer.log_training(
+        #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
+        #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
+        #         loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,0., step))
+            
+    # if epoch % hp.log.eval_interval == 0:
+    #     validate(generator_state)
+    # if step % hp.log.save_interval == 0:
+    #     generator_state_s = flax.jax_utils.unreplicate(generator_state)
+    #     discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
+    #     ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
+    #     save_args = orbax_utils.save_args_from_target(ckpt)
+    #     checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
 

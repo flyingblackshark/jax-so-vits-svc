@@ -79,17 +79,13 @@ class ResidualCouplingBlock(nn.Module):
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         if not reverse:
-            total_logdet = 0
             for flow in self.flows:
-                x, log_det = flow(x, x_mask, g=g, reverse=reverse,train=train)
-                total_logdet += log_det
-            return x, total_logdet
+                x, _ = flow(x, x_mask, g=g, reverse=reverse,train=train)
+            return x
         else:
-            total_logdet = 0
             for flow in reversed(self.flows):
-                x, log_det = flow(x, x_mask, g=g, reverse=reverse,train=train)
-                total_logdet += log_det
-            return x, total_logdet
+                x = flow(x, x_mask, g=g, reverse=reverse,train=train)
+            return x
 
 
 class PosteriorEncoder(nn.Module):
@@ -167,7 +163,7 @@ class SynthesizerTrn(nn.Module):
         self.dec = Generator(hp=self.hp)
 
     def __call__(self, ppg, pit, spec,spk, ppg_l, spec_l,train=True):
-        g = self.emb_g(spk).transpose(0,2,1)
+        g = self.emb_g(jnp.expand_dims(spk,-1)).transpose(0,2,1)
         
         z_ptemp, m_p, logs_p, _ = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)

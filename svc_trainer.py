@@ -1,8 +1,9 @@
 import argparse
 from omegaconf import OmegaConf
 from vits_extend.train import train
-
+import jax
 if __name__ == '__main__':
+    jax.config.update("jax_default_prng_impl", "unsafe_rbg")
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default="configs/base.yaml",
                         help="yaml file for configuration")

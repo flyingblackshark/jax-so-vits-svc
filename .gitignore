@@ -13,3 +13,5 @@ hubert_base.pt
 rmvpe.pt
 dataset_raw/
 pytorch_model.bin
+dataset/
+jax_cache/

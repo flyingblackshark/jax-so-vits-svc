@@ -39,7 +39,6 @@ class TacotronSTFT(nn.Module):
     def __init__(self, filter_length=512, hop_length=160, win_length=512,
                  n_mel_channels=80, sampling_rate=16000, mel_fmin=0.0,
                  mel_fmax=None):
-        #uper(TacotronSTFT, self).__init__()
         self.n_mel_channels = n_mel_channels
         self.sampling_rate = sampling_rate
         self.n_fft = filter_length
@@ -57,15 +56,6 @@ class TacotronSTFT(nn.Module):
         return jnp.abs(spec[2]/scale)
 
     def mel_spectrogram(self, y):
-        """Computes mel-spectrograms from a batch of waves
-        PARAMS
-        ------
-        y: Variable(torch.FloatTensor) with shape (B, T) in range [-1, 1]
-
-        RETURNS
-        -------
-        mel_output: torch.FloatTensor of shape (B, n_mel_channels, T)
-        """
         hann_win = scipy.signal.get_window('hann',self.n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
         spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary=None)

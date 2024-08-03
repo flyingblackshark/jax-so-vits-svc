@@ -13,7 +13,7 @@ os.environ["XLA_FLAGS"] = '--xla_force_host_platform_device_count=2'
 jax.config.update('jax_platform_name', 'cpu')
 
 def main():
-    data_files = glob.glob("dataset/*.arrayrecord")
+    data_files = glob.glob("dataset/aurora/*.arrayrecord")
     dataset = grain.python.ArrayRecordDataSource(data_files)
     # train_ds = datasets.load_dataset(
     # "../aurora",
@@ -30,7 +30,7 @@ def main():
       num_records=len(dataset),
       num_epochs=1,
       shard_options=grain.python.ShardOptions(
-          shard_index=jax.process_index(), shard_count=2, drop_remainder=True
+          shard_index=jax.process_index(), shard_count=1, drop_remainder=True
       ),
       shuffle=False,
       seed=0,
@@ -45,9 +45,11 @@ def main():
     #     seed=0,
     # )
     operations = []
-    hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
-    operations.append(utils.PreprocessAudioFiles(hubert_model))
+    #hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
+    #operations.append(utils.PreprocessAudioFiles(hubert_model))
     #operations.append(utils.PadToMaxLength(15*44100,749,1501,1498))
+    
+    operations.append(utils.ParseFeatures())
     operations.append(utils.PadToMaxLength(15*44100,750,1500,1500))
     operations.append(grain.python.Batch(batch_size=4 // jax.process_count(), drop_remainder=True))
     dataloader = grain.python.DataLoader(

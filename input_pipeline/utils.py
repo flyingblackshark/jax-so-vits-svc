@@ -6,10 +6,12 @@ from threading import current_thread
 import numpy as np
 import grain.python
 from input_pipeline import max_logging
+#import max_logging
 import librosa
 import torchcrepe
 import scipy
 import torch
+import tensorflow as tf
 class HFDataSource(grain.python.RandomAccessDataSource):
   """A class that makes HuggingFace IterableDataset a grain datasource without random access support"""
 
@@ -185,3 +187,47 @@ class PreprocessAudioFiles(grain.python.MapTransform):
         "spec_feature":self.compute_spec(audio_arr_32k)
     }
 
+
+class ParseFeatures(grain.python.MapTransform):
+  # """Parse serialized example"""
+  def __init__(self, hp):
+    self.hp = hp
+  def speaker2id(self,key):
+    import csv
+    reader = csv.reader(open(self.hp.data.speaker_files, 'r'))
+    for row in reader:
+      if row[0].lower() == key:
+      #if (tf.strings.unicode_decode(row[0].lower(),"UTF-8").numpy() == key.numpy()).all():
+        return int(row[1])
+    raise Exception("Speaker Not Found")
+  def map(self, features):
+    def _parse(example):
+      parsed = tf.io.parse_example(example, {
+        "audio": tf.io.FixedLenFeature([], dtype=tf.string),
+        "spec_feature": tf.io.FixedLenFeature([], dtype=tf.string),
+        "f0_feature": tf.io.FixedLenFeature([], dtype=tf.string),
+        "hubert_feature": tf.io.FixedLenFeature([], dtype=tf.string),
+        "speaker": tf.io.FixedLenFeature([], dtype=tf.string)
+        })
+      return parsed
+    example = _parse(features)
+    audio = tf.io.parse_tensor(example["audio"],tf.float32)
+    hubert_feature = tf.io.parse_tensor(example["hubert_feature"],tf.float32)
+    f0_feature = tf.io.parse_tensor(example["f0_feature"],tf.float32)
+    spec_feature = tf.io.parse_tensor(example["spec_feature"],tf.float32)
+
+    hubert_feature = tf.repeat(hubert_feature,repeats=2,axis=0) #replicate
+    #speaker = tf.strings.unicode_decode(example["speaker"],'UTF-8')
+    #return _parse(features)
+    return {
+        "audio": audio,
+        "audio_length":audio.shape[0],
+        "hubert_feature": hubert_feature,
+        "hubert_length":audio.shape[0],
+        "f0_feature": f0_feature,
+        "f0_length": f0_feature.shape[0],
+        "spec_feature":spec_feature,
+        "spec_length": spec_feature.shape[1],
+        "speaker_id":self.speaker2id(example["speaker"])
+    }
+  

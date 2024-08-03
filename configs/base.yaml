@@ -1,7 +1,7 @@
 train:
   model: "sovits"
   seed: 1234
-  epochs: 10000
+  steps: 100000
   learning_rate: 1e-5 #stable lr
   betas: [0.95, 0.98]
   lr_decay: 0.999875
@@ -16,6 +16,7 @@ train:
   max_to_keep : 10
 #############################
 data: 
+  speaker_files: "speaker2id.csv"
   training_files: "files/train.txt"
   validation_files: "files/valid.txt"
   n_speakers : 1
@@ -58,9 +59,9 @@ mrd:
   lReLU_slope: 0.2
 #############################
 log:
-  info_interval: 100
-  eval_interval: 100
-  save_interval: 100
+  info_interval: 10000
+  eval_interval: 10000
+  save_interval: 10000
   num_audio: 6
   pth_dir: 'chkpt'
   log_dir: 'logs'
@@ -70,3 +71,8 @@ dist_config:
   dist_url: "tcp://localhost:54321"
   world_size: 1
 
+data_loader:
+  host_number: 1
+  global_batch_size: 16
+  num_epochs: 10
+  worker_count: 2
