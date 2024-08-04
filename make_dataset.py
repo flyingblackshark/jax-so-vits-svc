@@ -8,7 +8,12 @@ import torchcrepe
 from array_record.python.array_record_module import ArrayRecordWriter
 import jax
 import jax.numpy as jnp
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from transformers import FlaxAutoModel
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"]="false"
+jax.config.update('jax_platform_name', 'cpu')
+from jax.experimental.compilation_cache import compilation_cache as cc
+cc.set_cache_dir("./jax_cache")
 def write_example_to_arrayrecord(example, file_path):
   writer = ArrayRecordWriter(file_path, 'group_size:1')
   writer.write(example.SerializeToString())
@@ -19,7 +24,7 @@ def predict_f0(audio):
     fmin = 50
     fmax = 1000
     model = "full"
-    batch_size = 1
+    batch_size = 512
     sr = 16000
     pitch, periodicity = torchcrepe.predict(
         audio,
@@ -50,14 +55,26 @@ def compute_spec(audio):
     win_size = 1024
     spec = spectrogram(audio_norm, n_fft, hop_size, win_size)
     return spec
-def process_file(wavPath,outPath,spks,hubert_model):
+# def process_files_with_thread_pool(wavPath, spks, outPath, thread_num,hubert_model):
+#     files = [f for f in os.listdir(f"./{wavPath}/{spks}") if f.endswith(".wav")]
+
+#     with ThreadPoolExecutor(max_workers=thread_num) as executor:
+#         futures = {executor.submit(process_file, file, wavPath, spks, outPath, hubert_model): file for file in files}
+
+#         for future in tqdm(as_completed(futures), total=len(futures), desc=f'Processing {sr} {spks}'):
+#             future.result()
+def process_file(wavPath,spks,outPath,hubert_model):
     for file in os.listdir(f"./{wavPath}/{spks}"):
         if file.endswith(".wav"):
             file = file[:-4]
             wav, sr = librosa.load(f"{wavPath}/{spks}/{file}.wav", sr=44100)
             audio_arr_32k = librosa.resample(wav, orig_sr=sr, target_sr=32000)
             audio_arr_16k = librosa.resample(wav, orig_sr=sr, target_sr=16000)
-            hubert_feature = hubert_model(np.expand_dims(audio_arr_16k,0)).last_hidden_state.squeeze(0)
+            test_shape = jax.eval_shape(hubert_model,jax.ShapeDtypeStruct(np.expand_dims(audio_arr_16k,0).shape, jnp.float32))
+            now_l = test_shape.last_hidden_state.shape[1]
+            audio_arr_16k = np.pad(audio_arr_16k,(0,30*16000-audio_arr_16k.shape[0]))
+            hubert_feature = jax.jit(hubert_model)(np.expand_dims(audio_arr_16k,0)).last_hidden_state.squeeze(0)
+            hubert_feature = hubert_feature[:now_l]
             example = tf.train.Example(
                 features=tf.train.Features(
                     feature={
@@ -74,6 +91,7 @@ def process_file(wavPath,outPath,spks,hubert_model):
                 )
             )
             write_example_to_arrayrecord(example=example,file_path=f"{outPath}/{spks}/{file}.arrayrecord")
+            print("write "+f"{outPath}/{spks}/{file}.arrayrecord")
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-w", "--wav", help="wav", dest="wav", required=True)
@@ -102,7 +120,7 @@ if __name__ == "__main__":
     for spks in os.listdir(wavPath):
         if os.path.isdir(f"./{wavPath}/{spks}"):
             os.makedirs(f"./{outPath}/{spks}", exist_ok=True)
-            process_file(wavPath,outPath,spks,hubert_model)
+            process_file(wavPath,spks,outPath,hubert_model)
             # if args.thread_count == 0:
             #     process_num = os.cpu_count() // 2 + 1
             # else:

@@ -2,10 +2,10 @@ matplotlib
 soundfile
 torchcrepe
 tensorboard
+tensorflow
 transformers
 tqdm
 librosa
 omegaconf
 flax
 optax
-orbax-checkpoint
