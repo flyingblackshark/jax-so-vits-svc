@@ -72,8 +72,8 @@ def process_file(wavPath,spks,outPath,hubert_model):
             audio_arr_16k = librosa.resample(wav, orig_sr=sr, target_sr=16000)
             test_shape = jax.eval_shape(hubert_model,jax.ShapeDtypeStruct(np.expand_dims(audio_arr_16k,0).shape, jnp.float32))
             now_l = test_shape.last_hidden_state.shape[1]
-            audio_arr_16k = np.pad(audio_arr_16k,(0,30*16000-audio_arr_16k.shape[0]))
-            hubert_feature = jax.jit(hubert_model)(np.expand_dims(audio_arr_16k,0)).last_hidden_state.squeeze(0)
+            audio_arr_16k_padded = np.pad(audio_arr_16k,(0,30*16000-audio_arr_16k.shape[0]))
+            hubert_feature = jax.jit(hubert_model)(np.expand_dims(audio_arr_16k_padded,0)).last_hidden_state.squeeze(0)
             hubert_feature = hubert_feature[:now_l]
             example = tf.train.Example(
                 features=tf.train.Features(

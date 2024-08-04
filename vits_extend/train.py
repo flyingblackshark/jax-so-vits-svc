@@ -26,12 +26,10 @@ from jax.experimental.compilation_cache import compilation_cache as cc
 cc.set_cache_dir("./jax_cache")
 PRNGKey = jnp.ndarray
 
-device_mesh = mesh_utils.create_device_mesh((jax.local_device_count()))
-mesh = Mesh(devices=device_mesh, axis_names=('data'))
-def mesh_sharding(pspec: PartitionSpec) -> NamedSharding:
-  return NamedSharding(mesh, pspec)
-x_sharding = mesh_sharding(PartitionSpec('data'))
-def create_generator_state(rng,hp): 
+
+
+
+def create_generator_state(rng,hp,mesh): 
     r"""Create the training state given a model class. """ 
     model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
     segment_size=hp.data.segment_size // hp.data.hop_length,
@@ -61,10 +59,10 @@ def create_generator_state(rng,hp):
     abstract_variables = jax.eval_shape(functools.partial(init_fn, model=model, optimizer=optimizer), init_rngs=init_rngs, example_inputs=example_inputs)
     state_sharding = nn.get_sharding(abstract_variables, mesh)
     jit_init_fn = jax.jit(init_fn, static_argnums=(2, 3),
-                      in_shardings=(mesh_sharding(()), mesh_sharding(())),  # PRNG key and x
+                      in_shardings=(NamedSharding(mesh,()), NamedSharding(mesh,())),  # PRNG key and x
                       out_shardings=state_sharding)
     return jit_init_fn(init_rngs, example_inputs,model,optimizer),state_sharding
-def create_discriminator_state(rng,hp): 
+def create_discriminator_state(rng,hp,mesh): 
     r"""Create the training state given a model class. """ 
     model = Discriminator(hp)
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
@@ -83,11 +81,11 @@ def create_discriminator_state(rng,hp):
     abstract_variables = jax.eval_shape(functools.partial(init_fn, model=model, optimizer=optimizer), init_rngs=init_rngs, fake_audio=fake_audio)
     state_sharding = nn.get_sharding(abstract_variables, mesh)
     jit_init_fn = jax.jit(init_fn, static_argnums=(2, 3),
-                      in_shardings=(mesh_sharding(()), mesh_sharding(())),  # PRNG key and x
+                      in_shardings=(NamedSharding(mesh,()), NamedSharding(mesh,())),  # PRNG key and x
                       out_shardings=state_sharding)
     
     return jit_init_fn(init_rngs, fake_audio,model,optimizer),state_sharding
-def train(args,hp):
+def train(args,hp,mesh):
     # @partial(jax.pmap, axis_name='num_devices')         
     # def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
     #     stft = TacotronSTFT(filter_length=hp.data.filter_length,
@@ -163,8 +161,8 @@ def train(args,hp):
     #valloader = create_dataloader_eval(hp)
     #trainloader = create_dataloader_train(hp)
     #trainloader = get_dataset()
-    discriminator_state,d_state_sharding = create_discriminator_state(key_discriminator,hp)
-    generator_state,g_state_sharding = create_generator_state(key_generator,hp)
+    discriminator_state,d_state_sharding = create_discriminator_state(key_discriminator,hp,mesh)
+    generator_state,g_state_sharding = create_generator_state(key_generator,hp,mesh)
 
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
@@ -179,6 +177,8 @@ def train(args,hp):
     
     # discriminator_state = flax.jax_utils.replicate(discriminator_state)
     # generator_state = flax.jax_utils.replicate(generator_state)
+    x_sharding = NamedSharding(mesh,PartitionSpec('data'))
+
     @functools.partial(jax.jit, in_shardings=(g_state_sharding,d_state_sharding, x_sharding,None),
                    out_shardings=(g_state_sharding,d_state_sharding))
     def combine_step(generator_state: TrainState,

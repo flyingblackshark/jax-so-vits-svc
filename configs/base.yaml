@@ -72,6 +72,7 @@ dist_config:
   world_size: 1
 
 data_loader:
+  dataset_path: "~/dataset"
   host_number: 1
   global_batch_size: 16
   num_epochs: 10

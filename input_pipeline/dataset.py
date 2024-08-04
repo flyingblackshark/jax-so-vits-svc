@@ -7,7 +7,7 @@ from input_pipeline import multihost_dataloading
 from transformers import FlaxAutoModel
 import glob
 def get_dataset(hp):
-    data_files = glob.glob("dataset/aurora/*.arrayrecord")
+    data_files = glob.glob("/home/fbsdev005/dataset/aurora/*.arrayrecord")
     dataset = grain.python.ArrayRecordDataSource(data_files)
     index_sampler = grain.python.IndexSampler(
       num_records=len(dataset),
