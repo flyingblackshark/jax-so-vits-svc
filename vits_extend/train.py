@@ -271,19 +271,20 @@ def train(args,hp,mesh):
         #loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
         return new_generator_state,new_discriminator_state
-    data_iterator = get_dataset(hp)
+    data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
         #loader = tqdm.tqdm(trainloader, desc='Loading train data')
         #for input in loader:
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
-        print("ready a step")
+        #print("ready a step")
         generator_state,discriminator_state=combine_step(generator_state, discriminator_state,example_batch,step_key)
-        print("finish a step")
+        #print("finish a step")
 
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
-        # if step % hp.log.info_interval == 0:
+        if step % hp.log.info_interval == 0:
+            print(f"current step:{step}")
         #     writer.log_training(
         #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
         #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (

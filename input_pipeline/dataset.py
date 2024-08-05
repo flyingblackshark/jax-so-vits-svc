@@ -6,7 +6,7 @@ import jax
 from input_pipeline import multihost_dataloading
 from transformers import FlaxAutoModel
 import glob
-def get_dataset(hp):
+def get_dataset(hp,mesh):
     data_files = glob.glob("/home/fbsdev005/dataset/aurora/*.arrayrecord")
     dataset = grain.python.ArrayRecordDataSource(data_files)
     index_sampler = grain.python.IndexSampler(
@@ -18,10 +18,10 @@ def get_dataset(hp):
       shuffle=True,
       seed=0,
     )
-    global_mesh = Mesh(jax.devices(),('x'))
+    # global_mesh = Mesh(jax.devices(),('x'))
     operations = []
     operations.append(utils.ParseFeatures(hp))
-    operations.append(utils.PadToMaxLength(15*44100,1500,1500,1500))
+    operations.append(utils.PadToMaxLength(30*44100,3000,3000,3000))
     operations.append(grain.python.Batch(batch_size=hp.data_loader.global_batch_size // jax.process_count(), drop_remainder=True))
     dataloader = grain.python.DataLoader(
         data_source=dataset,
@@ -30,5 +30,5 @@ def get_dataset(hp):
         worker_count=hp.data_loader.worker_count
     )
 
-    multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataloader, global_mesh)
+    multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataloader, mesh)
     return multihost_gen

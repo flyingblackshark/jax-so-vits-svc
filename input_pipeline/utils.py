@@ -7,10 +7,10 @@ import numpy as np
 import grain.python
 from input_pipeline import max_logging
 #import max_logging
-import librosa
-import torchcrepe
-import scipy
-import torch
+#import librosa
+#import torchcrepe
+#import scipy
+#import torch
 import tensorflow as tf
 # class HFDataSource(grain.python.RandomAccessDataSource):
 #   """A class that makes HuggingFace IterableDataset a grain datasource without random access support"""
@@ -223,7 +223,7 @@ class ParseFeatures(grain.python.MapTransform):
         "audio": audio,
         "audio_length":audio.shape[0],
         "hubert_feature": hubert_feature,
-        "hubert_length":audio.shape[0],
+        "hubert_length":hubert_feature.shape[0],
         "f0_feature": f0_feature,
         "f0_length": f0_feature.shape[0],
         "spec_feature":spec_feature,
