@@ -5,7 +5,7 @@ import logging
 import jax
 import optax
 import numpy as np
-import orbax
+
 from flax import linen as nn
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
@@ -15,10 +15,10 @@ from vits.models import SynthesizerTrn
 from vits import commons
 from vits.losses import kl_loss
 import jax.numpy as jnp
-import orbax.checkpoint
+import orbax.checkpoint as ocp
 from functools import partial
 from flax.training.train_state import TrainState
-from flax.training import orbax_utils
+
 from jax.experimental import mesh_utils
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from input_pipeline.dataset import get_dataset
@@ -165,13 +165,16 @@ def train(args,hp,mesh):
     generator_state,g_state_sharding = create_generator_state(key_generator,hp,mesh)
 
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
-    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-    checkpoint_manager = orbax.checkpoint.CheckpointManager(
-        'chkpt/sovits/', orbax_checkpointer, options)
+    mngr = ocp.CheckpointManager(
+    os.path.abspath('chkpt/sovits/'),
+    # `item_names` defines an up-front contract about what items the
+    # CheckpointManager will be dealing with.
+    item_names=('model_g', 'model_d'),
+    options=options,
+    )
     if checkpoint_manager.latest_step() is not None:
-        target = {'model_g': generator_state, 'model_d': discriminator_state}
         step = checkpoint_manager.latest_step()  # step = 4
-        states=checkpoint_manager.restore(step,items=target)
+        states=mngr.restore(step)
         discriminator_state=states['model_d']
         generator_state=states['model_g']
     
@@ -292,10 +295,11 @@ def train(args,hp,mesh):
             
     # if epoch % hp.log.eval_interval == 0:
     #     validate(generator_state)
-    # if step % hp.log.save_interval == 0:
-    #     generator_state_s = flax.jax_utils.unreplicate(generator_state)
-    #     discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
-    #     ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
-    #     save_args = orbax_utils.save_args_from_target(ckpt)
-    #     checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
+    if step % hp.log.save_interval == 0:
+        #generator_state_s = flax.jax_utils.unreplicate(generator_state)
+        #discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
+        mngr.save(step, args=ocp.args.Composite(
+            model_g=ocp.args.StandardSave(generator_state),
+            model_d=ocp.args.StandardSave(discriminator_state))
+        )
 

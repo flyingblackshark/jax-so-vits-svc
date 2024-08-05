@@ -13,7 +13,7 @@ def get_dataset(hp,mesh):
       num_records=len(dataset),
       num_epochs=hp.data_loader.num_epochs,
       shard_options=grain.python.ShardOptions(
-          shard_index=jax.process_index(), shard_count=hp.data_loader.host_number, drop_remainder=True
+          shard_index=jax.process_index(), shard_count=hp.data_loader.host_number, drop_remainder=False
       ),
       shuffle=True,
       seed=0,
@@ -22,7 +22,7 @@ def get_dataset(hp,mesh):
     operations = []
     operations.append(utils.ParseFeatures(hp))
     operations.append(utils.PadToMaxLength(30*44100,3000,3000,3000))
-    operations.append(grain.python.Batch(batch_size=hp.data_loader.global_batch_size // jax.process_count(), drop_remainder=True))
+    operations.append(grain.python.Batch(batch_size=hp.data_loader.global_batch_size // jax.process_count(), drop_remainder=False))
     dataloader = grain.python.DataLoader(
         data_source=dataset,
         operations=operations,
