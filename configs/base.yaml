@@ -63,7 +63,7 @@ log:
   eval_interval: 500
   save_interval: 500
   num_audio: 6
-  pth_dir: 'chkpt'
+  pth_dir: '/home/fbsdev005/dataset/chkpt' #absolute path
   log_dir: 'logs'
 #############################
 dist_config:

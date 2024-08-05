@@ -158,28 +158,23 @@ def train(args,hp,mesh):
     )
     #logger = logging.getLogger()
     #writer = MyWriter(hp, log_dir)
-    #valloader = create_dataloader_eval(hp)
-    #trainloader = create_dataloader_train(hp)
-    #trainloader = get_dataset()
+
     discriminator_state,d_state_sharding = create_discriminator_state(key_discriminator,hp,mesh)
     generator_state,g_state_sharding = create_generator_state(key_generator,hp,mesh)
 
-    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
-    mngr = ocp.CheckpointManager(
-    os.path.abspath('chkpt/sovits/'),
+    options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
+    mngr = ocp.CheckpointManager(os.path.abspath(pth_dir),
     # `item_names` defines an up-front contract about what items the
     # CheckpointManager will be dealing with.
     item_names=('model_g', 'model_d'),
     options=options,
     )
-    if checkpoint_manager.latest_step() is not None:
-        step = checkpoint_manager.latest_step()  # step = 4
+    if mngr.latest_step() is not None:
+        step = mngr.latest_step()  # step = 4
         states=mngr.restore(step)
         discriminator_state=states['model_d']
         generator_state=states['model_g']
     
-    # discriminator_state = flax.jax_utils.replicate(discriminator_state)
-    # generator_state = flax.jax_utils.replicate(generator_state)
     x_sharding = NamedSharding(mesh,PartitionSpec('data'))
 
     @functools.partial(jax.jit, in_shardings=(g_state_sharding,d_state_sharding, x_sharding,None),
@@ -277,13 +272,9 @@ def train(args,hp,mesh):
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
-        #loader = tqdm.tqdm(trainloader, desc='Loading train data')
-        #for input in loader:
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
-        #print("ready a step")
         generator_state,discriminator_state=combine_step(generator_state, discriminator_state,example_batch,step_key)
-        #print("finish a step")
 
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
         if step % hp.log.info_interval == 0:
@@ -293,13 +284,14 @@ def train(args,hp,mesh):
         #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
         #         loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,0., step))
             
-    # if epoch % hp.log.eval_interval == 0:
-    #     validate(generator_state)
-    if step % hp.log.save_interval == 0:
-        #generator_state_s = flax.jax_utils.unreplicate(generator_state)
-        #discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
-        mngr.save(step, args=ocp.args.Composite(
-            model_g=ocp.args.StandardSave(generator_state),
-            model_d=ocp.args.StandardSave(discriminator_state))
-        )
+        # if epoch % hp.log.eval_interval == 0:
+        #     validate(generator_state)
+        if step % hp.log.save_interval == 0:
+            #generator_state_s = flax.jax_utils.unreplicate(generator_state)
+            #discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
+            mngr.save(step, args=ocp.args.Composite(
+                model_g=ocp.args.StandardSave(generator_state),
+                model_d=ocp.args.StandardSave(discriminator_state))
+            )
+            print(f"write record at {step}")
 

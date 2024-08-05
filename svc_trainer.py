@@ -14,7 +14,7 @@ if __name__ == '__main__':
                         help="yaml file for configuration")
     # parser.add_argument('-p', '--checkpoint_path', type=str, default=None,
     #                     help="path of checkpoint pt file to resume training")
-    parser.add_argument('-n', '--name', type=str, default="sovits5.0",
+    parser.add_argument('-n', '--name', type=str, default="sovits",
                         help="name of the model for logging, saving checkpoint")
     args = parser.parse_args()
 
