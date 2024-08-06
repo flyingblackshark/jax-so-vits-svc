@@ -5,7 +5,7 @@ import logging
 import jax
 import optax
 import numpy as np
-
+import sys
 from flax import linen as nn
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
@@ -143,27 +143,27 @@ def train(args,hp,mesh):
     init_epoch = 1
     step = 0
     #if rank == 0:
-    pth_dir = os.path.join(hp.log.pth_dir, args.name)
-    log_dir = os.path.join(hp.log.log_dir, args.name)
-    os.makedirs(pth_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
+    #pth_dir = os.path.join(hp.log.pth_dir, args.name)
+    #log_dir = os.path.join(hp.log.log_dir, args.name)
+    #os.makedirs(pth_dir, exist_ok=True)
+    #os.makedirs(log_dir, exist_ok=True)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(os.path.join(log_dir, '%s-%d.log' % (args.name, time.time()))),
-            logging.StreamHandler()
-        ]
-    )
+    # logging.basicConfig(
+    #     level=logging.INFO,
+    #     format='%(asctime)s - %(levelname)s - %(message)s',
+    #     handlers=[
+    #         logging.FileHandler(os.path.join(log_dir, '%s-%d.log' % (args.name, time.time()))),
+    #         logging.StreamHandler()
+    #     ]
+    # )
     #logger = logging.getLogger()
     #writer = MyWriter(hp, log_dir)
 
     discriminator_state,d_state_sharding = create_discriminator_state(key_discriminator,hp,mesh)
     generator_state,g_state_sharding = create_generator_state(key_generator,hp,mesh)
 
-    options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
-    mngr = ocp.CheckpointManager(os.path.abspath(pth_dir),
+    options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True, enable_async_checkpointing=True)
+    mngr = ocp.CheckpointManager(hp.log.pth_dir,
     # `item_names` defines an up-front contract about what items the
     # CheckpointManager will be dealing with.
     item_names=('model_g', 'model_d'),
@@ -272,6 +272,8 @@ def train(args,hp,mesh):
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
+
+
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
         generator_state,discriminator_state=combine_step(generator_state, discriminator_state,example_batch,step_key)
@@ -287,11 +289,12 @@ def train(args,hp,mesh):
         # if epoch % hp.log.eval_interval == 0:
         #     validate(generator_state)
         if step % hp.log.save_interval == 0:
-            #generator_state_s = flax.jax_utils.unreplicate(generator_state)
-            #discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
             mngr.save(step, args=ocp.args.Composite(
                 model_g=ocp.args.StandardSave(generator_state),
                 model_d=ocp.args.StandardSave(discriminator_state))
             )
             print(f"write record at {step}")
+            if mngr.reached_preemption(step):
+                mngr.wait_until_finished()
+                sys.exit()
 

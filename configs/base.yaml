@@ -13,7 +13,7 @@ train:
   c_kl: 0.2
   port: 8001
   pretrain: ""
-  max_to_keep : 10
+  max_to_keep : 5
 #############################
 data: 
   speaker_files: "speaker2id.csv"
@@ -60,10 +60,10 @@ mrd:
 #############################
 log:
   info_interval: 100
-  eval_interval: 500
-  save_interval: 500
+  eval_interval: 1000
+  save_interval: 1000
   num_audio: 6
-  pth_dir: '/home/fbsdev005/dataset/chkpt' #absolute path
+  pth_dir: 'gs://fbs-us2/chkpt' #absolute path
   log_dir: 'logs'
 #############################
 dist_config:
@@ -72,7 +72,7 @@ dist_config:
   world_size: 1
 
 data_loader:
-  dataset_path: "~/dataset"
+  dataset_path: "/home/fbsdev005/dataset/aurora/*.arrayrecord"
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000
