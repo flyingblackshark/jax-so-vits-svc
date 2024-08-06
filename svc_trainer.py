@@ -6,7 +6,7 @@ import jax
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from jax.experimental import mesh_utils
 
-
+jax.config.update("jax_debug_nans", True)
 
 if __name__ == '__main__':
     jax.distributed.initialize()

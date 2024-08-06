@@ -173,35 +173,28 @@ def train(args,hp,mesh):
     
     x_sharding = NamedSharding(mesh,PartitionSpec('data'))
 
-    @functools.partial(jax.jit, in_shardings=(g_state_sharding,
-                                                d_state_sharding, 
-                                                x_sharding,
-                                                x_sharding,
-                                                x_sharding,
-                                                x_sharding,
-                                                x_sharding,
-                                                x_sharding,
-                                                x_sharding,
-                                                None),
-                   out_shardings=(g_state_sharding,d_state_sharding,None))
+    # @functools.partial(jax.jit, in_shardings=(g_state_sharding,
+    #                                             d_state_sharding, 
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             x_sharding,
+    #                                             None),
+    #                out_shardings=(g_state_sharding,d_state_sharding,None))
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                        ppg,
-                        pit,
-                        spec,
-                        spk,
-                        ppg_l,
-                        spec_l,
-                        audio_e,
-
+                        ppg:jnp.ndarray,
+                        pit:jnp.ndarray,
+                        spec:jnp.ndarray,
+                        spk:jnp.ndarray,
+                        ppg_l:jnp.ndarray,
+                        spec_l:jnp.ndarray,
+                        audio_e:jnp.ndarray,
                        rng_e:PRNGKey):
-        #audio_e,audio_l,pit,pit_l,ppg,ppg_l,spec,spec_l,spk = example_batch
-        jax.debug.print(ppg)
-        jax.debug.print(pit)
-        jax.debug.print(spec)
-        jax.debug.print(spk)
-        jax.debug.print(ppg_l)
-        jax.debug.print(audio_e)
+
         def loss_fn(params):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -220,8 +213,6 @@ def train(args,hp,mesh):
                     spk, 
                     ppg_l, 
                     spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
-            
-            #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             
             audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
@@ -252,19 +243,15 @@ def train(args,hp,mesh):
             feat_loss = feat_loss / len(disc_fake)
             feat_loss = feat_loss * 2
 
-            # Kl Loss
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hp.train.c_kl
-            #loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
-            # Loss
-            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl  #+ spk_loss * 2
+            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl
 
             return loss_g, (fake_audio,audio)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
         (loss_g,(fake_audio_g,audio_g)), grads_g = grad_fn(generator_state.params)
 
-        new_generator_state = generator_state.apply_gradients(
-            grads=grads_g)
+        new_generator_state = generator_state.apply_gradients(grads=grads_g)
         
         def loss_fn(params):
             disc_fake  = discriminator_state.apply_fn(
@@ -279,15 +266,12 @@ def train(args,hp,mesh):
           
             return loss_d
         
-        # Generate data with the Generator, critique it with the Discriminator.
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
         loss_d, grads_d = grad_fn(discriminator_state.params)
 
-        # Update the discriminator through gradient descent.
-        #loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
-        lossses = (loss_g,loss_d)
+        losses = (loss_g,loss_d)
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
-        return new_generator_state,new_discriminator_state,lossses
+        return new_generator_state,new_discriminator_state,losses
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
@@ -295,20 +279,20 @@ def train(args,hp,mesh):
 
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
-        with mesh:
-            generator_state,discriminator_state,lossses=combine_step(generator_state,
-                                                                    discriminator_state,
-                                                                    example_batch["hubert_feature"],
-                                                                    example_batch["f0_feature"],
-                                                                    example_batch["spec_feature"],
-                                                                    example_batch["speaker_id"],
-                                                                    example_batch["hubert_length"],
-                                                                    example_batch["spec_length"],
-                                                                    example_batch["audio"],
-                                                                    step_key)
+        #with mesh:
+        generator_state,discriminator_state,losses=combine_step(generator_state,
+                                                                discriminator_state,
+                                                                example_batch["hubert_feature"],
+                                                                example_batch["f0_feature"],
+                                                                example_batch["spec_feature"],
+                                                                example_batch["speaker_id"],
+                                                                example_batch["hubert_length"],
+                                                                example_batch["spec_length"],
+                                                                example_batch["audio"],
+                                                                step_key)
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
         if step % hp.log.info_interval == 0:
-            loss_g,loss_d = lossses
+            loss_g,loss_d = losses
             print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d}")
         #     writer.log_training(
         #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)

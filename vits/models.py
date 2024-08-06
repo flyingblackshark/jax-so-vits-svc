@@ -138,10 +138,6 @@ class SynthesizerTrn(nn.Module):
             3,
             0.1
         )
-        # self.speaker_classifier = SpeakerClassifier(
-        #     self.hp.vits.hidden_channels,
-        #     self.hp.vits.spk_dim,
-        # )
         self.enc_q = PosteriorEncoder(
             self.spec_channels,
             self.hp.vits.inter_channels,
@@ -189,53 +185,3 @@ class SynthesizerTrn(nn.Module):
         z = self.flow(z_p, ppg_mask, g=g, reverse=True,train=False)
         o = self.dec(z * ppg_mask, f0=pit,train=False)
         return o
-
-
-# class SynthesizerInfer(nn.Module):
-#     def __init__(
-#         self,
-#         spec_channels,
-#         segment_size,
-#         hp
-#     ):
-#         super().__init__()
-#         self.segment_size = segment_size
-#         self.enc_p = TextEncoder(
-#             hp.vits.ppg_dim,
-#             hp.vits.inter_channels,
-#             hp.vits.hidden_channels,
-#             hp.vits.filter_channels,
-#             2,
-#             6,
-#             3,
-#             0.1,
-#         )
-#         self.flow = ResidualCouplingBlock(
-#             hp.vits.inter_channels,
-#             hp.vits.hidden_channels,
-#             5,
-#             1,
-#             4,
-#             gin_channels=hp.vits.spk_dim
-#         )
-#         self.dec = Generator(hp=hp)
-
-#     def remove_weight_norm(self):
-#         self.flow.remove_weight_norm()
-#         self.dec.remove_weight_norm()
-
-#     def pitch2source(self, f0):
-#         return self.dec.pitch2source(f0)
-
-#     def source2wav(self, source):
-#         return self.dec.source2wav(source)
-
-#     def inference(self, ppg, pit, spk, ppg_l, source):
-
-#         ppg = ppg + jax.random.normal(rng,ppg.shape) * 0.0001  # Perturbation
-#         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-#             ppg, ppg_l, f0=f0_to_coarse(pit))
-#         z_p = m_p + jax.random.normal(rng,m_p.shape) * jnp.exp(logs_p) * 0.7  
-#         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
-#         o = self.dec.inference(spk, z * ppg_mask, source)
-#         return o
