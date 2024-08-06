@@ -127,7 +127,7 @@ class SynthesizerTrn(nn.Module):
     segment_size : int
     hp:tuple
     def setup(self):
-        self.emb_g = nn.Embed(self.hp.data.n_speakers,self.hp.vits.gin_channels)
+        self.emb_g = nn.Embed(self.hp.data.n_speakers +1,self.hp.vits.gin_channels)
         self.enc_p = TextEncoder(
             self.hp.vits.ppg_dim,
             self.hp.vits.inter_channels,

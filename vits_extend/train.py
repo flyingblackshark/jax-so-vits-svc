@@ -68,7 +68,7 @@ def create_discriminator_state(rng,hp,mesh):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     fake_audio = jnp.ones((1,1,hp.data.segment_size))
-    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
+    #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
     optimizer = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
     
     def init_fn(init_rngs,fake_audio,model, optimizer):
@@ -167,23 +167,25 @@ def train(args,hp,mesh):
     )
     if mngr.latest_step() is not None:
         step = mngr.latest_step()  # step = 4
-        states=mngr.restore(step)
+        states=mngr.restore(step,args=ocp.args.Composite(
+    model_g=ocp.args.StandardRestore(generator_state),
+    model_d=ocp.args.StandardRestore(discriminator_state)))
         discriminator_state=states['model_d']
         generator_state=states['model_g']
     
     x_sharding = NamedSharding(mesh,PartitionSpec('data'))
 
-    # @functools.partial(jax.jit, in_shardings=(g_state_sharding,
-    #                                             d_state_sharding, 
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             x_sharding,
-    #                                             None),
-    #                out_shardings=(g_state_sharding,d_state_sharding,None))
+    @functools.partial(jax.jit, in_shardings=(g_state_sharding,
+                                                d_state_sharding, 
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                None),
+                   out_shardings=(g_state_sharding,d_state_sharding,None))
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
                         ppg:jnp.ndarray,
