@@ -141,7 +141,7 @@ def train(args,hp,mesh):
     combine_step_key,key_generator, key_discriminator, key = jax.random.split(key, 4)
     
     init_epoch = 1
-    step = 0
+    #step = 0
 
 
     # logging.basicConfig(
@@ -172,6 +172,7 @@ def train(args,hp,mesh):
     model_d=ocp.args.StandardRestore(discriminator_state)))
         discriminator_state=states['model_d']
         generator_state=states['model_g']
+        init_epoch = step + 1
     
     x_sharding = NamedSharding(mesh,PartitionSpec('data'))
 
