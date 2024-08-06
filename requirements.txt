@@ -1,6 +1,6 @@
 matplotlib
 soundfile
-torchcrepe
+#torchcrepe
 tensorboard
 tensorflow
 transformers

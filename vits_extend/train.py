@@ -7,7 +7,7 @@ import optax
 import numpy as np
 import sys
 from flax import linen as nn
-from vits_extend.writer import MyWriter
+#from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
 from vits_extend.stft_loss import MultiResolutionSTFTLoss
 from vits_decoder.discriminator import Discriminator

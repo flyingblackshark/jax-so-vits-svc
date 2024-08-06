@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 import numpy as np
 from scipy.io.wavfile import read
-import torch
+#import torch
 MATPLOTLIB_FLAG = False
 
 
@@ -29,7 +29,7 @@ def f0_to_coarse(f0):
     f0_mel = jnp.where(f0_mel<=1,1,f0_mel)
     #f0_mel[f0_mel > f0_bin - 1] = f0_bin - 1
     f0_mel = jnp.where(f0_mel > (f0_bin - 1),f0_bin - 1,f0_mel)
-    f0_coarse = jnp.rint(f0_mel).astype(np.int32)
+    f0_coarse = jnp.rint(f0_mel).astype(jnp.int32)
     # assert f0_coarse.max() <= 255 and f0_coarse.min(
     # ) >= 1, (f0_coarse.max(), f0_coarse.min())
     return f0_coarse
