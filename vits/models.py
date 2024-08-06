@@ -126,7 +126,6 @@ class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
     hp:tuple
-    train: bool = True
     def setup(self):
         self.emb_g = nn.Embed(self.hp.data.n_speakers,self.hp.vits.gin_channels)
         self.enc_p = TextEncoder(
@@ -183,14 +182,12 @@ class SynthesizerTrn(nn.Module):
         # spk_preds = self.speaker_classifier(gradient_reversal(x))
         return audio, ids_slice, spec_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
-    def infer(self, ppg, pit,vec, spk, ppg_l):
-        rng = self.make_rng('rnorms')
-        infer_key , rng = jax.random.split(rng)
-        ppg = ppg + jax.random.normal(infer_key,ppg.shape) * 0.0001  # Perturbation
-        z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=False)
-        z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)
-        o = self.dec(spk, z * ppg_mask, f0=pit,train=False)
+    def infer(self, ppg, pit, spk, ppg_l):
+        z_p, m_p, logs_p, ppg_mask = self.enc_p(
+            ppg, ppg_l, f0=f0_to_coarse(pit),train=False)
+        g = self.emb_g(jnp.expand_dims(spk,-1)).transpose(0,2,1)
+        z = self.flow(z_p, ppg_mask, g=g, reverse=True,train=False)
+        o = self.dec(z * ppg_mask, f0=pit,train=False)
         return o
 
 

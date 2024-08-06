@@ -23,7 +23,7 @@ from jax.experimental import mesh_utils
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from input_pipeline.dataset import get_dataset
 from jax.experimental.compilation_cache import compilation_cache as cc
-cc.set_cache_dir("./jax_cache")
+cc.set_cache_dir("./jax_train_cache")
 PRNGKey = jnp.ndarray
 
 
@@ -40,11 +40,11 @@ def create_generator_state(rng,hp,mesh):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     example_inputs = {
-        "ppg":jnp.zeros((1,400,1024)),
-        "pit":jnp.zeros((1,400)),
-        "spec":jnp.zeros((1,513,400)),
-        "ppg_l":jnp.zeros((1),dtype=jnp.int32),
-        "spec_l":jnp.zeros((1),dtype=jnp.int32),
+        "ppg":jnp.ones((1,400,1024)),
+        "pit":jnp.ones((1,400)),
+        "spec":jnp.ones((1,513,400)),
+        "ppg_l":jnp.ones((1),dtype=jnp.int32),
+        "spec_l":jnp.ones((1),dtype=jnp.int32),
         "spk":jnp.ones((1),dtype=jnp.int32),
     }
     
@@ -67,7 +67,7 @@ def create_discriminator_state(rng,hp,mesh):
     model = Discriminator(hp)
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
-    fake_audio = jnp.zeros((1,1,hp.data.segment_size))
+    fake_audio = jnp.ones((1,1,hp.data.segment_size))
     exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
     optimizer = optax.adamw(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
     
@@ -142,11 +142,7 @@ def train(args,hp,mesh):
     
     init_epoch = 1
     step = 0
-    #if rank == 0:
-    #pth_dir = os.path.join(hp.log.pth_dir, args.name)
-    #log_dir = os.path.join(hp.log.log_dir, args.name)
-    #os.makedirs(pth_dir, exist_ok=True)
-    #os.makedirs(log_dir, exist_ok=True)
+
 
     # logging.basicConfig(
     #     level=logging.INFO,
@@ -177,13 +173,35 @@ def train(args,hp,mesh):
     
     x_sharding = NamedSharding(mesh,PartitionSpec('data'))
 
-    @functools.partial(jax.jit, in_shardings=(g_state_sharding,d_state_sharding, x_sharding,None),
-                   out_shardings=(g_state_sharding,d_state_sharding))
+    @functools.partial(jax.jit, in_shardings=(g_state_sharding,
+                                                d_state_sharding, 
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                x_sharding,
+                                                None),
+                   out_shardings=(g_state_sharding,d_state_sharding,None))
     def combine_step(generator_state: TrainState,
                        discriminator_state: TrainState,
-                        example_batch,
+                        ppg,
+                        pit,
+                        spec,
+                        spk,
+                        ppg_l,
+                        spec_l,
+                        audio_e,
+
                        rng_e:PRNGKey):
         #audio_e,audio_l,pit,pit_l,ppg,ppg_l,spec,spec_l,spk = example_batch
+        jax.debug.print(ppg)
+        jax.debug.print(pit)
+        jax.debug.print(spec)
+        jax.debug.print(spk)
+        jax.debug.print(ppg_l)
+        jax.debug.print(audio_e)
         def loss_fn(params):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -196,16 +214,16 @@ def train(args,hp,mesh):
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
             fake_audio, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
-                {'params': params},  example_batch["hubert_feature"],
-                  example_batch["f0_feature"], 
-                  example_batch["spec_feature"],
-                    example_batch["speaker_id"], 
-                    example_batch["hubert_length"], 
-                    example_batch["spec_length"],train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+                {'params': params},  ppg,
+                  pit, 
+                  spec,
+                    spk, 
+                    ppg_l, 
+                    spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             
             #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             
-            audio = commons.slice_segments(jnp.expand_dims(example_batch["audio"],1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
@@ -267,8 +285,9 @@ def train(args,hp,mesh):
 
         # Update the discriminator through gradient descent.
         #loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
+        lossses = (loss_g,loss_d)
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
-        return new_generator_state,new_discriminator_state
+        return new_generator_state,new_discriminator_state,lossses
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
@@ -276,11 +295,21 @@ def train(args,hp,mesh):
 
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
-        generator_state,discriminator_state=combine_step(generator_state, discriminator_state,example_batch,step_key)
-
+        with mesh:
+            generator_state,discriminator_state,lossses=combine_step(generator_state,
+                                                                    discriminator_state,
+                                                                    example_batch["hubert_feature"],
+                                                                    example_batch["f0_feature"],
+                                                                    example_batch["spec_feature"],
+                                                                    example_batch["speaker_id"],
+                                                                    example_batch["hubert_length"],
+                                                                    example_batch["spec_length"],
+                                                                    example_batch["audio"],
+                                                                    step_key)
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
         if step % hp.log.info_interval == 0:
-            print(f"current step:{step}")
+            loss_g,loss_d = lossses
+            print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d}")
         #     writer.log_training(
         #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
         #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (

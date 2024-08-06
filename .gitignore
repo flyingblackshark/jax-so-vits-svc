@@ -15,3 +15,4 @@ dataset_raw/
 pytorch_model.bin
 dataset/
 jax_cache/
+jax_train_cache/
