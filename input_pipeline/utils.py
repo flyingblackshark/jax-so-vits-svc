@@ -133,60 +133,6 @@ class PadToMaxLength(grain.python.MapTransform):
     data["spec_feature"] = pad_spec(data["spec_feature"], self.spec_max_length)
     return data
   
-class PreprocessAudioFiles(grain.python.MapTransform):
-  """Normalize feature keys for HuggingFace input"""
-  def __init__(self, hubert_model):
-    self.hubert_model = hubert_model
-  def predict_f0(self,audio):
-    audio = torch.tensor(np.copy(audio),dtype=torch.float32)[None]
-    hop_length = 160
-    fmin = 50
-    fmax = 1000
-    model = "full"
-    batch_size = 1
-    sr = 16000
-    pitch, periodicity = torchcrepe.predict(
-        audio,
-        sr,
-        hop_length,
-        fmin,
-        fmax,
-        model,
-        batch_size=batch_size,
-        device="cpu",
-        return_periodicity=True,
-    )
-    # CREPE was not trained on silent audio. some error on silent need filter.pitPath
-    periodicity = torchcrepe.filter.median(periodicity, 7)
-    pitch = torchcrepe.filter.mean(pitch, 5)
-    pitch[periodicity < 0.5] = 0
-    pitch = pitch.squeeze(0)
-    return pitch.numpy()
-  def spectrogram(self,y, n_fft, hop_size, win_size):
-    spec = scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary=None)
-    spec = np.abs(spec[2])+(1e-9)
-    return spec.squeeze(0)
-  def compute_spec(self,audio):
-    audio_norm = audio / 32768.0
-    audio_norm = np.expand_dims(audio_norm,axis=0)
-    n_fft = 1024
-    hop_size = 320
-    win_size = 1024
-    spec = self.spectrogram(audio_norm, n_fft, hop_size, win_size)
-    return spec
-  def map(self, features):
-    audio_arr_44k = np.asarray(features["audio"]["array"])
-    audio_arr_32k = librosa.resample(audio_arr_44k, orig_sr=features["audio"]["sampling_rate"], target_sr=32000)
-    audio_arr_16k = librosa.resample(audio_arr_44k, orig_sr=features["audio"]["sampling_rate"], target_sr=16000)
-    hubert_feature = self.hubert_model(np.expand_dims(audio_arr_16k,0)).last_hidden_state.squeeze(0)
-    
-    return {
-        "audio": audio_arr_32k,
-        "hubert_feature":hubert_feature,
-        "f0_feature":self.predict_f0(audio_arr_16k),
-        "spec_feature":self.compute_spec(audio_arr_32k)
-    }
-
 
 class ParseFeatures(grain.python.MapTransform):
   # """Parse serialized example"""

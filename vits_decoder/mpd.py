@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
-from .snake import snake
+
 
 class DiscriminatorP(nn.Module):
     hp:tuple
@@ -42,8 +42,7 @@ class DiscriminatorP(nn.Module):
 
         for l in self.convs:
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-            #x = nn.leaky_relu(x, self.LRELU_SLOPE)
-            x = nn.swish(x)
+            x = nn.leaky_relu(x, 0.1)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
         fmap.append(x)

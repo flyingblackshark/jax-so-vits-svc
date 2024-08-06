@@ -44,8 +44,8 @@ def predict_f0(audio):
     pitch = pitch.squeeze(0)
     return pitch.numpy()
 def spectrogram(y, n_fft, hop_size, win_size):
-    spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary=None)
-    spec = np.abs(spec[2])+(1e-9)
+    f,t,spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary=None)
+    spec = np.abs(spec)+(1e-9)
     return spec.squeeze(0)
 def compute_spec(audio):
     audio_norm = audio / 32768.0

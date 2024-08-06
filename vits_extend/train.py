@@ -210,7 +210,8 @@ def train(args,hp,mesh):
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
             fake_audio, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
-                {'params': params},  ppg,
+                {'params': params},  
+                ppg,
                   pit, 
                   spec,
                     spk, 
@@ -249,10 +250,10 @@ def train(args,hp,mesh):
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hp.train.c_kl
             loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl
 
-            return loss_g, (fake_audio,audio)
+            return loss_g, (fake_audio,audio,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,audio_g,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)), grads_g = grad_fn(generator_state.params)
 
         new_generator_state = generator_state.apply_gradients(grads=grads_g)
         
@@ -272,7 +273,7 @@ def train(args,hp,mesh):
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
         loss_d, grads_d = grad_fn(discriminator_state.params)
 
-        losses = (loss_g,loss_d)
+        losses = (loss_g,loss_d,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
         return new_generator_state,new_discriminator_state,losses
     data_iterator = get_dataset(hp,mesh)
@@ -282,21 +283,21 @@ def train(args,hp,mesh):
 
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
-        #with mesh:
-        generator_state,discriminator_state,losses=combine_step(generator_state,
-                                                                discriminator_state,
-                                                                example_batch["hubert_feature"],
-                                                                example_batch["f0_feature"],
-                                                                example_batch["spec_feature"],
-                                                                example_batch["speaker_id"],
-                                                                example_batch["hubert_length"],
-                                                                example_batch["spec_length"],
-                                                                example_batch["audio"],
-                                                                step_key)
+        with mesh:
+            generator_state,discriminator_state,losses=combine_step(generator_state,
+                                                                    discriminator_state,
+                                                                    example_batch["hubert_feature"],
+                                                                    example_batch["f0_feature"],
+                                                                    example_batch["spec_feature"],
+                                                                    example_batch["speaker_id"],
+                                                                    example_batch["hubert_length"],
+                                                                    example_batch["spec_length"],
+                                                                    example_batch["audio"],
+                                                                    step_key)
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
         if step % hp.log.info_interval == 0:
-            loss_g,loss_d = losses
-            print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d}")
+            loss_g,loss_d,mel_loss,score_loss,feat_loss,stft_loss,loss_kl = losses
+            print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d} mel_loss:{mel_loss} score_loss:{score_loss} feat_loss:{feat_loss} stft_loss:{stft_loss} kl_loss:{loss_kl}")
         #     writer.log_training(
         #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
         #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (

@@ -3,9 +3,8 @@ import jax
 import jax.numpy as jnp
 import flax.linen as nn
 
-from vits.snake import SnakeBeta
 from .nsf import SourceModuleHnNSF
-from .bigv import AMPBlock
+
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 from vits import commons
@@ -31,6 +30,31 @@ from vits import commons
 #         y = y.transpose(0,2,1)
 #         return y
 
+class ResBlock1(nn.Module):
+    channels:int
+    kernel_size:int=3
+    dilation:tuple=(1, 3, 5)
+    def setup(self):
+       
+        self.convs1 =[
+            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=normal_init(0.01),bias_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=normal_init(0.01),bias_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=normal_init(0.01),bias_init=nn.initializers.normal())]
+        self.convs2 = [
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),bias_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),bias_init=nn.initializers.normal()),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=normal_init(0.01),bias_init=nn.initializers.normal())
+        ]
+        self.num_layers = len(self.convs1) + len(self.convs2)
+        
+    def __call__(self, x,train=True):
+        for c1, c2 in zip(self.convs1, self.convs2):
+            xt = nn.leaky_relu(x,0.1)
+            xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
+            xt = nn.leaky_relu(xt,0.1)
+            xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
+            x = xt + x
+        return x
 
 class Generator(nn.Module):
     hp:tuple
@@ -77,17 +101,13 @@ class Generator(nn.Module):
                            (2 ** (i + 1)), kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
                 )
 
-        # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
         resblocks = []
         for i in range(len(ups)):
             ch = self.hp.gen.upsample_initial_channel // (2 ** (i + 1))
             for k, d in zip(self.hp.gen.resblock_kernel_sizes, self.hp.gen.resblock_dilation_sizes):
-                resblocks.append(AMPBlock(ch, k, d))
+                resblocks.append(ResBlock1(ch, k, d))
 
-        # post conv
         self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False,dtype=jnp.float32)
-        self.activation_post = SnakeBeta(ch)
-        # weight initialization
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
@@ -103,7 +123,7 @@ class Generator(nn.Module):
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
 
         for i in range(self.num_upsamples):
-            #x = nn.leaky_relu(x, 0.1)
+            x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
             # nsf
@@ -119,8 +139,7 @@ class Generator(nn.Module):
             x = xs / self.num_kernels
         # post conv
         
-        #x = nn.leaky_relu(x)
-        x = self.activation_post(x)
+        x = nn.leaky_relu(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x

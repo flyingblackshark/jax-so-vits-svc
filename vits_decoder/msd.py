@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
-from .snake import snake
+
 
 class ScaleDiscriminator(nn.Module):
     def setup(self):
@@ -23,8 +23,7 @@ class ScaleDiscriminator(nn.Module):
         fmap = []
         for l in self.convs:
             x = l(x.transpose(0,2,1)).transpose(0,2,1)
-            #x = nn.leaky_relu(x, 0.1)
-            x = nn.swish(x)
+            x = nn.leaky_relu(x, 0.1)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         fmap.append(x)
