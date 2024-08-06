@@ -142,7 +142,7 @@ class ParseFeatures(grain.python.MapTransform):
     import csv
     reader = csv.reader(open(self.hp.data.speaker_files, 'r'))
     for row in reader:
-      if row[0].lower() == key:
+      if row[0].lower() == key.lower():
       #if (tf.strings.unicode_decode(row[0].lower(),"UTF-8").numpy() == key.numpy()).all():
         return int(row[1])
     raise Exception("Speaker Not Found")
