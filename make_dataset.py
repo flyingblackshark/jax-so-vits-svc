@@ -119,7 +119,7 @@ if __name__ == "__main__":
     
     for spks in os.listdir(wavPath):
         if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{outPath}/{spks}", exist_ok=True)
+            #os.makedirs(f"./{outPath}/{spks}", exist_ok=True)
             process_file(wavPath,spks,outPath,hubert_model)
             # if args.thread_count == 0:
             #     process_num = os.cpu_count() // 2 + 1
