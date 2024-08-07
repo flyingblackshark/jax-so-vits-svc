@@ -143,28 +143,3 @@ class Generator(nn.Module):
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 
         return x
-
-    def inference(self, spk, x, har_source):
-        x = self.conv_pre(x)
-
-        for i in range(self.num_upsamples):
-            x = nn.functional.leaky_relu(x, 0.1)
-            # upsampling
-            x = self.ups[i](x)
-            # nsf
-            x_source = self.noise_convs[i](har_source)
-            x = x + x_source
-            # AMP blocks
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
-            x = xs / self.num_kernels
-
-        # post conv
-        x = nn.functional.leaky_relu(x)
-        x = self.conv_post(x)
-        x = nn.tanh(x)
-        return x

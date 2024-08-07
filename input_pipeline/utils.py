@@ -12,6 +12,8 @@ from input_pipeline import max_logging
 #import scipy
 #import torch
 import tensorflow as tf
+import random
+
 # class HFDataSource(grain.python.RandomAccessDataSource):
 #   """A class that makes HuggingFace IterableDataset a grain datasource without random access support"""
 
@@ -96,7 +98,25 @@ import tensorflow as tf
 #         return data
 #       except StopIteration:
 #         self._update_shard(idx)
+class SliceToLength(grain.python.MapTransform):
+  """Pads each input to the specified length"""
 
+  def __init__(self,hp):
+    self.use = int(hp.data.segment_size / hp.data.hop_length * 16)  # 4 S
+    self.hop_length = hp.data.hop_length
+  def map(self, data):
+    max_frame_start = data["hubert_feature"].shape[0] - self.use - 1
+    frame_start = random.randint(0, int(max_frame_start))
+    frame_end = frame_start + self.use
+    
+    data["hubert_feature"] = data["hubert_feature"][frame_start:frame_end, :]
+    data["f0_feature"] = data["f0_feature"][frame_start:frame_end]
+    data["spec_feature"] = data["spec_feature"][:, frame_start:frame_end]
+
+    wav_start = frame_start * self.hop_length
+    wav_end = frame_end * self.hop_length
+    data["audio"] = data["audio"][wav_start:wav_end]
+    return data
 class PadToMaxLength(grain.python.MapTransform):
   """Pads each input to the specified length"""
 
@@ -142,7 +162,7 @@ class ParseFeatures(grain.python.MapTransform):
     import csv
     reader = csv.reader(open(self.hp.data.speaker_files, 'r'))
     for row in reader:
-      if row[0].lower() == key.lower():
+      if row[0].lower() == key:
       #if (tf.strings.unicode_decode(row[0].lower(),"UTF-8").numpy() == key.numpy()).all():
         return int(row[1])
     raise Exception("Speaker Not Found")

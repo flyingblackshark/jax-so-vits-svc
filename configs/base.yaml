@@ -2,7 +2,7 @@ train:
   model: "sovits"
   seed: 1234
   steps: 100000
-  learning_rate: 2e-4 #stable lr
+  learning_rate: 5e-4 #stable lr
   betas: [0.95, 0.98]
   lr_decay: 0.999875
   total_steps: 10000 # base on dataset size
@@ -34,8 +34,8 @@ vits:
   ppg_dim: 1280
   spk_dim: 256
   gin_channels: 256
-  inter_channels: 192
-  hidden_channels: 192
+  inter_channels: 512
+  hidden_channels: 512
   filter_channels: 512
 #############################
 gen:
@@ -72,7 +72,7 @@ dist_config:
   world_size: 1
 
 data_loader:
-  dataset_path: "/home/fbsdev005/dataset/aurora/*.arrayrecord"
+  dataset_path: "/home/fbsdev005/dataset/processed/aurora/*.arrayrecord"
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000
