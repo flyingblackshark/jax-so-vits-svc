@@ -2,9 +2,9 @@ train:
   model: "sovits"
   seed: 1234
   steps: 100000
-  learning_rate: 5e-5 #stable lr
+  learning_rate: 5e-4 #stable lr
   betas: [0.95, 0.98]
-  lr_decay: 0.999875
+  lr_decay: 0.99875
   total_steps: 10000 # base on dataset size
   eps: 1e-9
   batch_size: 2
@@ -76,4 +76,4 @@ data_loader:
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000
-  worker_count: 4
+  worker_count: 2
