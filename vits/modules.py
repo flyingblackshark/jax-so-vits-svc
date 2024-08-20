@@ -1,15 +1,32 @@
-import copy
-import math
-import numpy as np
 import jax.numpy as jnp
 from flax import linen as nn
-from vits import commons
-import jax
-
-
-from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 
+class ResBlock1(nn.Module):
+    channels:int
+    kernel_size:int=3
+    dilation:tuple=(1, 3, 5)
+    def setup(self):
+       
+        self.convs1 =[
+            nn.WeightNorm(nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0])),
+            nn.WeightNorm(nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1])),
+            nn.WeightNorm(nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2]))]
+        self.convs2 = [
+            nn.WeightNorm(nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1)),
+            nn.WeightNorm(nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1)),
+            nn.WeightNorm(nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1))
+        ]
+        self.num_layers = len(self.convs1) + len(self.convs2)
+        
+    def __call__(self, x,train=True):
+        for c1, c2 in zip(self.convs1, self.convs2):
+            xt = nn.leaky_relu(x,0.1)
+            xt = c1(xt.transpose(0,2,1)).transpose(0,2,1)
+            xt = nn.leaky_relu(xt,0.1)
+            xt = c2(xt.transpose(0,2,1)).transpose(0,2,1)
+            x = xt + x
+        return x
 class WN(nn.Module):
     hidden_channels:int
     kernel_size:int
@@ -24,16 +41,14 @@ class WN(nn.Module):
         res_skip_layers = []
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
         if self.gin_channels != 0:
-            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
+            self.cond_layer = nn.WeightNorm(nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1]))
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            in_layer = nn.Conv(
+            in_layer = nn.WeightNorm(nn.Conv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
-                kernel_dilation=dilation,
-                kernel_init=nn.initializers.normal(),
-                bias_init=nn.initializers.normal()
-            )
+                kernel_dilation=dilation
+            ))
             in_layers.append(in_layer)
 
             # last one is not necessary
@@ -42,7 +57,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+            res_skip_layer = nn.WeightNorm(nn.Conv(features=res_skip_channels, kernel_size=[1]))
             res_skip_layers.append(res_skip_layer)
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers

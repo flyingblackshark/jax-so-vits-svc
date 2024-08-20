@@ -591,6 +591,7 @@ class FlaxHubertEncoder(nn.Module):
         position_embeddings = self.pos_conv_embed(hidden_states)
 
         hidden_states = hidden_states + position_embeddings
+        hidden_states = self.layer_norm(hidden_states)
         hidden_states = self.dropout(hidden_states, deterministic=deterministic)
 
         outputs = self.layers(
@@ -602,7 +603,9 @@ class FlaxHubertEncoder(nn.Module):
             return_dict=return_dict,
         )
 
-        last_hidden_state = self.layer_norm(outputs[0])
+        #last_hidden_state = self.layer_norm(outputs[0])
+        last_hidden_state = outputs[0]
+
 
         hidden_states = None
         if output_hidden_states:

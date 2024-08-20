@@ -39,7 +39,6 @@ def predict_f0(audio):
         device="cpu",
         return_periodicity=True,
     )
-    # CREPE was not trained on silent audio. some error on silent need filter.pitPath
     periodicity = torchcrepe.filter.median(periodicity, 7)
     pitch = torchcrepe.filter.mean(pitch, 5)
     pitch[periodicity < 0.5] = 0

@@ -1,19 +1,11 @@
 
-import flax
+
 from flax import linen as nn
-from jax.nn.initializers import normal as normal_init
-from flax.training import train_state
 import jax.numpy as jnp
 import jax
-from jax import random
-import numpy as np
-import optax
-
-
 from vits import attentions
 from vits import commons
 from vits import modules
-from vits.modules_grl import SpeakerClassifier
 from vits.utils import f0_to_coarse
 from vits_decoder.generator import Generator
 
@@ -122,6 +114,7 @@ class PosteriorEncoder(nn.Module):
         z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs))
         z = jnp.where(x_mask,z,0)
         return z, m, logs, x_mask
+    
 class SynthesizerTrn(nn.Module):
     spec_channels : int
     segment_size : int
@@ -166,16 +159,7 @@ class SynthesizerTrn(nn.Module):
         z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
             z, pit, spec_l, self.segment_size,rng=self.make_rng('rnorms'))
         audio = self.dec(z_slice, pit_slice,train=train)
-
-        # SNAC to flow
         z_p = self.flow(z, spec_mask, g=g,reverse=False,train=train)
-        #z_r, logdet_r = self.flow(z_p, spec_mask, g=g,reverse=True,train=train)
-
-        # def gradient_reversal(x):
-        #     zeros = -x + jax.lax.stop_gradient(x)
-        #     return zeros + jax.lax.stop_gradient(x)
-        
-        # spk_preds = self.speaker_classifier(gradient_reversal(x))
         return audio, ids_slice, spec_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
     def infer(self, ppg, pit, spk, ppg_l):

@@ -310,8 +310,3 @@ def train(args,hp,mesh):
                 model_g=ocp.args.StandardSave(generator_state),
                 model_d=ocp.args.StandardSave(discriminator_state))
             )
-            print(f"write record at {step}")
-            if mngr.reached_preemption(step):
-                mngr.wait_until_finished()
-                sys.exit()
-

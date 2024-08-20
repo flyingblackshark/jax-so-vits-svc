@@ -16,3 +16,9 @@ pytorch_model.bin
 dataset/
 jax_cache/
 jax_train_cache/
+processed/
+*/cut_f0_padded.py
+*/cut_hubert_padded.py
+*/cut_spec_padded.py
+make_dataset_batch.py
+test.py
