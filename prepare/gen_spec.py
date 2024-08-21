@@ -5,9 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from jax.experimental import mesh_utils
-from functools import partial
 import jax
-MAX_LENGTH = 16000 * 30
 import audax.core
 import audax.core.functional
 import audax.core.stft
@@ -18,6 +16,7 @@ from jax_fcpe.utils import load_model
 import jax
 from jax.experimental.compilation_cache import compilation_cache as cc
 cc.set_cache_dir("./jax_cache")
+MAX_LENGTH = 32000 * 30
 WIN_SIZE = 1024
 HOP_SIZE = 320
 N_FFT = 1024
@@ -41,7 +40,7 @@ def batch_process_spec(files,batch_size,outPath,wavPath,spks,mesh):
         print(f"{i+1}/{len(files)}")
         file = files[i][:-4]
         file_name_arr.append(file)
-        wav, sr = librosa.load(f"{wavPath}/{spks}/{file}.wav", sr=16000, mono=True)
+        wav, sr = librosa.load(f"{wavPath}/{spks}/{file}.wav", sr=32000, mono=True)
         test_shape = jax.eval_shape(get_spec,jax.ShapeDtypeStruct((1,wav.shape[0]), jnp.float32))
         batch_length.append(test_shape.shape[1])
         wav = np.pad(wav,(0,MAX_LENGTH-wav.shape[0]))

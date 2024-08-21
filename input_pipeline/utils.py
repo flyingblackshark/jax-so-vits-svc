@@ -193,7 +193,7 @@ class ParseFeatures(grain.python.MapTransform):
         "f0_feature": f0_feature,
         "f0_length": f0_feature.shape[0],
         "spec_feature":spec_feature,
-        "spec_length": spec_feature.shape[1],
+        "spec_length": spec_feature.shape[0],
         "speaker_id":self.speaker2id(example["speaker"])
     }
   
