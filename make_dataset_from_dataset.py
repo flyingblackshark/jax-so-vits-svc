@@ -1,10 +1,8 @@
 import tensorflow as tf
-import numpy as np
 import argparse
 import os
 import librosa
 from array_record.python.array_record_module import ArrayRecordWriter
-import jax
 import jax.numpy as jnp
 def write_example_to_arrayrecord(example, file_path):
   writer = ArrayRecordWriter(file_path, 'group_size:1')
@@ -15,7 +13,6 @@ def process_file(dsPath,spks,listPath,outPath):
         if file.endswith(".wav"):
             file = file[:-4]
             wav, sr = librosa.load(f"{dsPath}/waves-32k/{spks}/{file}.wav", sr=32000)
-            #audio_arr_32k = librosa.resample(wav, orig_sr=sr, target_sr=32000)
             spec = jnp.load(f"{dsPath}/spec/{spks}/{file}.spec.npy")
             f0 = jnp.load(f"{dsPath}/pitch/{spks}/{file}.pit.npy")
             hubert = jnp.load(f"{dsPath}/hubert/{spks}/{file}.bert.npy")
