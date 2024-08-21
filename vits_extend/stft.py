@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import audax
+import audax.core.stft
 import jax.numpy as jnp
 import flax.linen as nn
 from librosa.filters import mel as librosa_mel_fn
@@ -49,8 +49,8 @@ class TacotronSTFT(nn.Module):
     def mel_spectrogram(self, y):
         hann_win = jnp.hanning(self.win_size)
         pad_size = (self.win_size-self.hop_size)//2
-        wav = jnp.pad(wav, ((0,0),(pad_size, pad_size)),mode="reflect")
-        spec = audax.core.stft.stft(wav,self.n_fft,self.hop_size,self.win_size,hann_win,onesided=True,center=False)
+        y = jnp.pad(y, ((0,0),(pad_size, pad_size)),mode="reflect")
+        spec = audax.core.stft.stft(y,self.n_fft,self.hop_size,self.win_size,hann_win,onesided=True,center=False)
         spec = jnp.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
         spec = spec.transpose(0,2,1)
         spec = jnp.matmul(self.mel_basis, spec)
