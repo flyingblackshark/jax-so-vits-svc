@@ -102,6 +102,7 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
 
     def __call__(self, x, x_lengths,g=None,train=True):
+        x = x.tranpose(0,2,1)
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
@@ -152,7 +153,6 @@ class SynthesizerTrn(nn.Module):
 
     def __call__(self, ppg, pit, spec,spk, ppg_l, spec_l,train=True):
         g = self.emb_g(jnp.expand_dims(spk,-1)).transpose(0,2,1)
-        
         z_ptemp, m_p, logs_p, _ = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)

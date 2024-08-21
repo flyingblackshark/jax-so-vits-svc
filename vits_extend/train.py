@@ -42,7 +42,7 @@ def create_generator_state(rng,hp,mesh):
     example_inputs = {
         "ppg":jnp.ones((1,400,1024)),
         "pit":jnp.ones((1,400)),
-        "spec":jnp.ones((1,513,400)),
+        "spec":jnp.ones((1,400,513)),
         "ppg_l":jnp.ones((1),dtype=jnp.int32),
         "spec_l":jnp.ones((1),dtype=jnp.int32),
         "spk":jnp.ones((1),dtype=jnp.int32),
