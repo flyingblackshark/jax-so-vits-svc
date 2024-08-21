@@ -40,7 +40,7 @@ def create_generator_state(rng,hp,mesh):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     example_inputs = {
-        "ppg":jnp.ones((1,400,1024)),
+        "ppg":jnp.ones((1,400,768)),
         "pit":jnp.ones((1,400)),
         "spec":jnp.ones((1,400,513)),
         "ppg_l":jnp.ones((1),dtype=jnp.int32),
