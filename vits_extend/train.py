@@ -279,8 +279,6 @@ def train(args,hp,mesh):
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
-
-
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
         with mesh:

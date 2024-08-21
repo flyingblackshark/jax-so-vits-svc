@@ -37,7 +37,7 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
             for j in range(batch_hubert.shape[0]):
                 cur = i - batch_hubert.shape[0] + j
                 file = files[cur][:-4]
-                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_data[j,:batch_length[j]])
+                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
             batch_data = []
             batch_length = []
         i+=1
@@ -50,7 +50,7 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
         for j in range(batch_hubert.shape[0]):
             cur = i - batch_hubert.shape[0] + j
             file = files[cur][:-4]
-            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_data[j,:batch_length[j]])
+            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
