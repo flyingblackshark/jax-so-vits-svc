@@ -20,20 +20,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import math
-import os
-import random
-# import torch
-# import torch.utils.data
-import jax
+import audax
 import jax.numpy as jnp
 import flax.linen as nn
-import numpy as np
-from librosa.util import normalize
-from scipy.io.wavfile import read
 from librosa.filters import mel as librosa_mel_fn
-from typing import Optional
-import scipy
+
 class TacotronSTFT(nn.Module):
 
     def __init__(self, filter_length=512, hop_length=160, win_length=512,
@@ -48,21 +39,20 @@ class TacotronSTFT(nn.Module):
         self.fmax = mel_fmax
         mel = librosa_mel_fn(
             sr=sampling_rate, n_fft=filter_length, n_mels=n_mel_channels, fmin=mel_fmin, fmax=mel_fmax)
-        self.mel_basis = mel
-    def linear_spectrogram(self, y):
-        spec = jax.scipy.signal.stft(y,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary=None)    
-        hann_win = scipy.signal.get_window('hann',self.n_fft)
-        scale = np.sqrt(1.0/hann_win.sum()**2)
-        return jnp.abs(spec[2]/scale)
+        self.mel_basis = jnp.asarray(mel)
+    # def linear_spectrogram(self, y):
+    #     spec = jax.scipy.signal.stft(y,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary=None)    
+    #     hann_win = scipy.signal.get_window('hann',self.n_fft)
+    #     scale = np.sqrt(1.0/hann_win.sum()**2)
+    #     return jnp.abs(spec[2]/scale)
 
     def mel_spectrogram(self, y):
-        hann_win = scipy.signal.get_window('hann',self.n_fft)
-        scale = np.sqrt(1.0/hann_win.sum()**2)
-        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=True,boundary=None)
-        spec = spec[2]/scale
-        real = jnp.real(spec)
-        imag = jnp.imag(spec)
-        spec = jnp.sqrt(real**2+imag**2+(1e-9))
+        hann_win = jnp.hanning(self.win_size)
+        pad_size = (self.win_size-self.hop_size)//2
+        wav = jnp.pad(wav, ((0,0),(pad_size, pad_size)),mode="reflect")
+        spec = audax.core.stft.stft(wav,self.n_fft,self.hop_size,self.win_size,hann_win,onesided=True,center=False)
+        spec = jnp.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
+        spec = spec.transpose(0,2,1)
         spec = jnp.matmul(self.mel_basis, spec)
         spec = self.spectral_normalize_torch(spec)
 
@@ -73,4 +63,4 @@ class TacotronSTFT(nn.Module):
         return output
 
     def dynamic_range_compression_torch(self, x, C=1, clip_val=1e-5):
-        return jnp.log(jnp.clip(a=x, a_min=clip_val) * C)
+        return jnp.log(jnp.clip(x,min=clip_val) * C)

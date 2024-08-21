@@ -111,7 +111,7 @@ class SliceToLength(grain.python.MapTransform):
     
     data["hubert_feature"] = data["hubert_feature"][frame_start:frame_end, :]
     data["f0_feature"] = data["f0_feature"][frame_start:frame_end]
-    data["spec_feature"] = data["spec_feature"][:, frame_start:frame_end]
+    data["spec_feature"] = data["spec_feature"][frame_start:frame_end, :]
 
     wav_start = frame_start * self.hop_length
     wav_end = frame_end * self.hop_length
@@ -145,7 +145,7 @@ class PadToMaxLength(grain.python.MapTransform):
       return np.pad(x, ((0,pad_amount)))
     def pad_spec(x, max_length):
       pad_amount = max(max_length - x.shape[1], 0)
-      return np.pad(x, ((0,0),(0,pad_amount)))
+      return np.pad(x, ((0,pad_amount),(0,0)))
     
     data["audio"] = pad_audio(data["audio"], self.audio_max_length)
     data["hubert_feature"] = pad_hubert(data["hubert_feature"], self.hubert_max_length)
