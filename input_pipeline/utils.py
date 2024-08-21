@@ -144,7 +144,7 @@ class PadToMaxLength(grain.python.MapTransform):
       pad_amount = max(max_length - x.shape[0], 0)
       return np.pad(x, ((0,pad_amount)))
     def pad_spec(x, max_length):
-      pad_amount = max(max_length - x.shape[1], 0)
+      pad_amount = max(max_length - x.shape[0], 0)
       return np.pad(x, ((0,pad_amount),(0,0)))
     
     data["audio"] = pad_audio(data["audio"], self.audio_max_length)
