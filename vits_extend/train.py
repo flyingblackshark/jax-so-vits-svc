@@ -40,9 +40,9 @@ def create_generator_state(rng,hp,mesh):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     example_inputs = {
-        "ppg":jnp.ones((1,400,1024)),
+        "ppg":jnp.ones((1,400,768)),
         "pit":jnp.ones((1,400)),
-        "spec":jnp.ones((1,513,400)),
+        "spec":jnp.ones((1,400,513)),
         "ppg_l":jnp.ones((1),dtype=jnp.int32),
         "spec_l":jnp.ones((1),dtype=jnp.int32),
         "spk":jnp.ones((1),dtype=jnp.int32),
@@ -279,8 +279,6 @@ def train(args,hp,mesh):
     data_iterator = get_dataset(hp,mesh)
     example_batch = None
     for step in range(init_epoch, hp.train.steps):
-
-
         step_key,combine_step_key=jax.random.split(combine_step_key)
         example_batch = next(data_iterator)
         with mesh:
@@ -310,8 +308,3 @@ def train(args,hp,mesh):
                 model_g=ocp.args.StandardSave(generator_state),
                 model_d=ocp.args.StandardSave(discriminator_state))
             )
-            print(f"write record at {step}")
-            if mngr.reached_preemption(step):
-                mngr.wait_until_finished()
-                sys.exit()
-

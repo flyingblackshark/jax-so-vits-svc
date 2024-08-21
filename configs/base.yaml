@@ -7,7 +7,7 @@ train:
   lr_decay: 0.99875
   total_steps: 10000 # base on dataset size
   eps: 1e-9
-  batch_size: 2
+  batch_size: 2+
   c_stft: 9
   c_mel: 1.
   c_kl: 0.2
@@ -72,8 +72,8 @@ dist_config:
   world_size: 1
 
 data_loader:
-  dataset_path: "/home/fbsdev005/dataset/processed/aurora/*.arrayrecord"
+  dataset_path: "/home/fbsdev005/bucket/processed/aurora/*.arrayrecord"
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000
-  worker_count: 2
+  worker_count: 1
