@@ -102,7 +102,7 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
 
     def __call__(self, x, x_lengths,g=None,train=True):
-        x = x.tranpose(0,2,1)
+        x = x.transpose(0,2,1)
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
