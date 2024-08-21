@@ -197,7 +197,7 @@ def train(args,hp,mesh):
                         spec_l:jnp.ndarray,
                         audio_e:jnp.ndarray,
                        rng_e:PRNGKey):
-
+        audio = jnp.expand_dims(audio_e,1)
         def loss_fn(params):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -206,10 +206,10 @@ def train(args,hp,mesh):
                     sampling_rate=hp.data.sampling_rate,
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
-            stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
+            #stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            fake_audio, ids_slice, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
+            fake_audio, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
                 {'params': params},  
                 ppg,
                   pit, 
@@ -217,18 +217,16 @@ def train(args,hp,mesh):
                     spk, 
                     ppg_l, 
                     spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
-            
-            audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+                     
+            #audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
             mel_loss = jnp.mean(jnp.abs(mel_fake - mel_real)) * hp.train.c_mel
-            #Multi-Resolution STFT Loss
             
-            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
-            stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
+            # sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
+            # stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
-            # Generator Loss 
             disc_fake = discriminator_state.apply_fn(
             {'params': discriminator_state.params}, fake_audio)
             score_loss = 0.0
@@ -236,7 +234,6 @@ def train(args,hp,mesh):
                 score_loss += jnp.mean(jnp.square(score_fake - 1.0))
             score_loss = score_loss / len(disc_fake)
 
-            # Feature Loss
             disc_real= discriminator_state.apply_fn(
             {'params': discriminator_state.params}, audio)
 
@@ -248,12 +245,12 @@ def train(args,hp,mesh):
             feat_loss = feat_loss * 2
 
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hp.train.c_kl
-            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl
+            loss_g = mel_loss + score_loss +  feat_loss + loss_kl
 
-            return loss_g, (fake_audio,audio,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)
+            return loss_g, (fake_audio,mel_loss,score_loss,feat_loss,loss_kl)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,mel_loss,score_loss,feat_loss,loss_kl)), grads_g = grad_fn(generator_state.params)
 
         new_generator_state = generator_state.apply_gradients(grads=grads_g)
         
@@ -261,7 +258,7 @@ def train(args,hp,mesh):
             disc_fake  = discriminator_state.apply_fn(
                 {'params': params},fake_audio_g)
             disc_real  = discriminator_state.apply_fn(
-                {'params': params},audio_g)
+                {'params': params},audio)
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean(jnp.square(score_real - 1.0))
@@ -273,7 +270,7 @@ def train(args,hp,mesh):
         grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
         loss_d, grads_d = grad_fn(discriminator_state.params)
 
-        losses = (loss_g,loss_d,mel_loss,score_loss,feat_loss,stft_loss,loss_kl)
+        losses = (loss_g,loss_d,mel_loss,score_loss,feat_loss,loss_kl)
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
         return new_generator_state,new_discriminator_state,losses
     data_iterator = get_dataset(hp,mesh)
@@ -294,8 +291,8 @@ def train(args,hp,mesh):
                                                                     step_key)
         # loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
         if step % hp.log.info_interval == 0:
-            loss_g,loss_d,mel_loss,score_loss,feat_loss,stft_loss,loss_kl = losses
-            print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d} mel_loss:{mel_loss} score_loss:{score_loss} feat_loss:{feat_loss} stft_loss:{stft_loss} kl_loss:{loss_kl}")
+            loss_g,loss_d,mel_loss,score_loss,feat_loss,loss_kl = losses
+            print(f"step:{step} loss_g:{loss_g} loss_d:{loss_d} mel_loss:{mel_loss} score_loss:{score_loss} feat_loss:{feat_loss} kl_loss:{loss_kl}")
         #     writer.log_training(
         #         loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
         #     logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (

@@ -75,7 +75,7 @@ def create_generator_state(rng,hp):
     example_inputs = {
         "ppg":jnp.zeros((1,400,768)),
         "pit":jnp.zeros((1,400)),
-        "spec":jnp.zeros((1,513,400)),
+        "spec":jnp.zeros((1,400,513)),
         "ppg_l":jnp.zeros((1),dtype=jnp.int32),
         "spec_l":jnp.zeros((1),dtype=jnp.int32),
         "spk":jnp.ones((1),dtype=jnp.int32),
@@ -94,7 +94,7 @@ def main(args):
 
     hp = OmegaConf.load(args.config)
     spk = speaker2id(hp,args.spk)
-    hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
+    
     model_g = create_generator_state(jax.random.PRNGKey(0),hp)
     options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, enable_async_checkpointing=True)
     mngr = ocp.CheckpointManager(hp.log.pth_dir,
@@ -109,6 +109,7 @@ def main(args):
     
     wav, sr = librosa.load(args.wave, sr=16000)
     pit = get_f0(np.expand_dims(wav,0)).squeeze(0)
+    hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
     ppg = hubert_model(np.expand_dims(wav,0)).last_hidden_state.squeeze(0)
     ppg = jnp.repeat(ppg,repeats=2,axis=0)
     print("pitch shift: ", args.shift)

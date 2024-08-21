@@ -50,11 +50,12 @@ class Generator(nn.Module):
                 resblocks.append(ResBlock1(ch, k, d))
 
         self.conv_post =  nn.WeightNorm(nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False))
+        self.cond = nn.Conv(self.hp.gen.upsample_initial_channel, 1)
         self.ups = ups
         self.noise_convs = noise_convs
         self.resblocks = resblocks
 
-    def __call__(self, x, f0,train=True):
+    def __call__(self, x, f0,g=None,train=True):
         x = x + jax.random.normal(self.make_rng('rnorms'),x.shape)
 
         f0 = f0[:, None]
@@ -63,7 +64,7 @@ class Generator(nn.Module):
         har_source = self.m_source(f0,self.make_rng('rnorms'))
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
-
+        x = x + self.cond(g)
         for i in range(self.num_upsamples):
             x = nn.leaky_relu(x, 0.1)
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
