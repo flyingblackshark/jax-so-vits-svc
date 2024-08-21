@@ -23,9 +23,11 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
    
     batch_data = []
     batch_length = []
+    file_name_arr = []
     while i < len(files):
         print(f"{i+1}/{len(files)}")
         file = files[i][:-4]
+        file_name_arr.append(file)
         wav, sr = librosa.load(f"{wavPath}/{spks}/{file}.wav", sr=16000, mono=True)
         test_shape = jax.eval_shape(hubert_model,jax.ShapeDtypeStruct((1,wav.shape[0]), jnp.float32)).last_hidden_state
         batch_length.append(test_shape.shape[1])
@@ -35,22 +37,21 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
             batch_data = np.stack(batch_data)
             batch_hubert = jitted_hubert_model(batch_data).last_hidden_state
             for j in range(batch_hubert.shape[0]):
-                cur = i - batch_hubert.shape[0] + j
-                file = files[cur][:-4]
-                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j],:])
+                file = file_name_arr[j]
+                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
             batch_data = []
             batch_length = []
+            file_name_arr = []
         i+=1
     if len(batch_data) != 0:
         batch_data = np.stack(batch_data)
         b_length = len(batch_data)
         batch_data = np.pad(batch_data,((0,batch_size-b_length),(0,0)))
-        batch_hubert = jitted_hubert_model(batch_data)
+        batch_hubert = jitted_hubert_model(batch_data).last_hidden_state
         batch_hubert = batch_hubert[:b_length]
         for j in range(batch_hubert.shape[0]):
-            cur = i - batch_hubert.shape[0] + j
-            file = files[cur][:-4]
-            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j],:])
+            file = file_name_arr[j]
+            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

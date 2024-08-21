@@ -54,10 +54,12 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
     model,params = load_model()
     batch_data = []
     batch_length = []
+    file_name_arr = []
     jitted_get_f0 = jax.jit(partial(get_f0,model=model,params=params), in_shardings=(x_sharding),out_shardings=x_sharding)
     while i < len(files):
         print(f"{i+1}/{len(files)}")
         file = files[i][:-4]
+        file_name_arr.append(file)
         wav, sr = librosa.load(f"{wavPath}/{spks}/{file}.wav", sr=16000, mono=True)
         test_shape = jax.eval_shape(partial(get_f0,model=model,params=params),jax.ShapeDtypeStruct((1,wav.shape[0]), jnp.float32))
         batch_length.append(test_shape.shape[1])
@@ -68,11 +70,11 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
             batch_data = np.stack(batch_data)
             batch_f0 = jitted_get_f0(batch_data)
             for j in range(batch_f0.shape[0]):
-                cur = i - batch_f0.shape[0] + j
-                file = files[cur][:-4]
+                file = file_name_arr[j]
                 jnp.save(f"./{outPath}/{spks}/{file}.pit",batch_f0[j,:batch_length[j]])
             batch_data = []
             batch_length = []
+            file_name_arr = []
     if len(batch_data) != 0:
         batch_data = np.stack(batch_data)
         b_length = len(batch_data)
@@ -80,8 +82,7 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
         batch_f0 = jitted_get_f0(batch_data)
         batch_f0 = batch_f0[:b_length]
         for j in range(batch_f0.shape[0]):
-            cur = i - batch_f0.shape[0] + j
-            file = files[cur][:-4]
+            file = file_name_arr[j]
             jnp.save(f"./{outPath}/{spks}/{file}.pit",batch_f0[j,:batch_length[j]])
 
 if __name__ == "__main__":
