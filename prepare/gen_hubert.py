@@ -37,20 +37,20 @@ def batch_process_f0(files,batch_size,outPath,wavPath,spks,mesh):
             for j in range(batch_hubert.shape[0]):
                 cur = i - batch_hubert.shape[0] + j
                 file = files[cur][:-4]
-                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
+                jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j],:])
             batch_data = []
             batch_length = []
         i+=1
     if len(batch_data) != 0:
         batch_data = np.stack(batch_data)
         b_length = len(batch_data)
-        batch_data = np.pad(batch_data,((batch_size-b_length),(0,0)))
+        batch_data = np.pad(batch_data,((0,batch_size-b_length),(0,0)))
         batch_hubert = jitted_hubert_model(batch_data)
         batch_hubert = batch_hubert[:b_length]
         for j in range(batch_hubert.shape[0]):
             cur = i - batch_hubert.shape[0] + j
             file = files[cur][:-4]
-            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j]])
+            jnp.save(f"./{outPath}/{spks}/{file}.bert",batch_hubert[j,:batch_length[j],:])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
