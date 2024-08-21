@@ -12,48 +12,54 @@ from flax.training.train_state import TrainState
 from omegaconf import OmegaConf
 from scipy.io.wavfile import write
 from vits.models import SynthesizerTrn
-
-from flax.training import orbax_utils
-import orbax
-from functools import partial
-import torch
-import torchcrepe
 import librosa
 from transformers import FlaxAutoModel
 import optax
+import audax.core
+import audax.core.functional
+import audax.core.stft
+import jax.numpy as jnp
+import audax
+from librosa.filters import mel as librosa_mel_fn
+from jax_fcpe.utils import load_model
+import jax
+from jax.experimental.compilation_cache import compilation_cache as cc
+cc.set_cache_dir("./jax_cache")
 jax.config.update('jax_platform_name', 'cpu')
-def predict_f0(audio):
-    audio = torch.tensor(np.copy(audio),dtype=torch.float32)[None]
-    hop_length = 160
-    fmin = 50
-    fmax = 1000
-    model = "full"
-    batch_size = 512
-    sr = 16000
-    pitch, periodicity = torchcrepe.predict(
-        audio,
-        sr,
-        hop_length,
-        fmin,
-        fmax,
-        model,
-        batch_size=batch_size,
-        device="cpu",
-        return_periodicity=True,
-    )
-    # CREPE was not trained on silent audio. some error on silent need filter.pitPath
-    periodicity = torchcrepe.filter.median(periodicity, 7)
-    pitch = torchcrepe.filter.mean(pitch, 5)
-    pitch[periodicity < 0.5] = 0
-    pitch = pitch.squeeze(0)
-    return pitch.numpy()
+WIN_SIZE = 1024
+HOP_SIZE = 160
+N_FFT = 1024
+NUM_MELS = 128
+f0_min = 80.
+f0_max = 880.
+mel_basis = librosa_mel_fn(sr=16000, n_fft=N_FFT, n_mels=NUM_MELS, fmin=0, fmax=8000)
+mel_basis = jnp.asarray(mel_basis,dtype=jnp.float32)
+
+def get_f0(wav):
+    model,params = load_model()
+    wav = jnp.asarray(wav)
+    window = jnp.hanning(WIN_SIZE)
+    pad_size = (WIN_SIZE-HOP_SIZE)//2
+    wav = jnp.pad(wav, ((0,0),(pad_size, pad_size)),mode="reflect")
+    spec = audax.core.stft.stft(wav,N_FFT,HOP_SIZE,WIN_SIZE,window,onesided=True,center=False)
+    spec = jnp.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
+    spec = spec.transpose(0,2,1)
+    mel = jnp.matmul(mel_basis, spec)
+    mel = jnp.log(jnp.clip(mel, min=1e-5) * 1)
+    mel = mel.transpose(0,2,1)
+
+    def model_predict(mel):
+        f0 = model.apply(params,mel,threshold=0.006,method=model.infer)
+        uv = (f0 < f0_min).astype(jnp.float32)
+        f0 = f0 * (1 - uv)
+        return f0
+    return model_predict(mel).squeeze(-1)
 
 def speaker2id(hp,key):
     import csv
     reader = csv.reader(open(hp.data.speaker_files, 'r'))
     for row in reader:
         if row[0].lower() == key.lower():
-            #if (tf.strings.unicode_decode(row[0].lower(),"UTF-8").numpy() == key.numpy()).all():
             return int(row[1])
     raise Exception("Speaker Not Found")
 def create_generator_state(rng,hp): 
@@ -67,9 +73,9 @@ def create_generator_state(rng,hp):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     example_inputs = {
-        "ppg":jnp.zeros((1,400,1024)),
+        "ppg":jnp.zeros((1,400,768)),
         "pit":jnp.zeros((1,400)),
-        "spec":jnp.zeros((1,513,400)),
+        "spec":jnp.zeros((1,400,513)),
         "ppg_l":jnp.zeros((1),dtype=jnp.int32),
         "spec_l":jnp.zeros((1),dtype=jnp.int32),
         "spk":jnp.ones((1),dtype=jnp.int32),
@@ -87,24 +93,25 @@ def create_generator_state(rng,hp):
 def main(args):
 
     hp = OmegaConf.load(args.config)
-    
     spk = speaker2id(hp,args.spk)
-    hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
+    
     model_g = create_generator_state(jax.random.PRNGKey(0),hp)
-    options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True, enable_async_checkpointing=True)
+    options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, enable_async_checkpointing=True)
     mngr = ocp.CheckpointManager(hp.log.pth_dir,
     item_names=('model_g', 'model_d'),
     options=options,
     )
-    step = mngr.latest_step()  # step = 4
+    step = mngr.latest_step() 
     states=mngr.restore(step,args=ocp.args.Composite(
     model_g=ocp.args.StandardRestore(model_g)))
     #discriminator_state=states['model_d']
     generator_state=states['model_g']
     
     wav, sr = librosa.load(args.wave, sr=16000)
-    pit = predict_f0(wav)
+    pit = get_f0(np.expand_dims(wav,0)).squeeze(0)
+    hubert_model = FlaxAutoModel.from_pretrained("./hubert",from_pt=True, trust_remote_code=True)
     ppg = hubert_model(np.expand_dims(wav,0)).last_hidden_state.squeeze(0)
+    ppg = jnp.repeat(ppg,repeats=2,axis=0)
     print("pitch shift: ", args.shift)
     if (args.shift == 0):
         pass
@@ -126,7 +133,6 @@ def main(args):
     pit = pit[:len_min]
     ppg = ppg[:len_min, :]
     
-    #@partial(jax.jit,backend='cpu')
     def parallel_infer(pit_i,ppg_i,spk_i,len_min_i):
         model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
             segment_size=hp.data.segment_size // hp.data.hop_length,
