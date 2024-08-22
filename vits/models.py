@@ -154,11 +154,12 @@ class SynthesizerTrn(nn.Module):
         z_ptemp, m_p, logs_p, _ = self.enc_p(
             ppg, ppg_l, f0=f0_to_coarse(pit),train=train)
         z, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
-        # z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
-        #     z, pit, spec_l, self.segment_size,rng=self.make_rng('rnorms'))
-        audio = self.dec(z, pit,g=g,train=train)
         z_p = self.flow(z, spec_mask, g=g,reverse=False,train=train)
-        return audio, spec_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
+
+        z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(z, pit, spec_l, self.segment_size,rng=self.make_rng('rnorms'))
+        audio = self.dec(z_slice, pit_slice,g=g,train=train)
+        
+        return audio,ids_slice, spec_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
     def infer(self, ppg, pit, spk, ppg_l):
         z_p, m_p, logs_p, ppg_mask = self.enc_p(ppg, ppg_l, f0=f0_to_coarse(pit),train=False)

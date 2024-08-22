@@ -48,10 +48,9 @@ def create_generator_state(rng,hp,mesh):
         "spk":jnp.ones((1),dtype=jnp.int32),
     }
     
-
     def init_fn(init_rngs,example_inputs,model, optimizer):
         variables = model.init(init_rngs, **example_inputs,train=False)
-        state = TrainState.create( # Create a `TrainState`.
+        state = TrainState.create( 
         apply_fn=model.apply,
         params=variables['params'],
         tx=optimizer)
@@ -160,13 +159,11 @@ def train(args,hp,mesh):
 
     options = ocp.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True, enable_async_checkpointing=True)
     mngr = ocp.CheckpointManager(hp.log.pth_dir,
-    # `item_names` defines an up-front contract about what items the
-    # CheckpointManager will be dealing with.
     item_names=('model_g', 'model_d'),
     options=options,
     )
     if mngr.latest_step() is not None:
-        step = mngr.latest_step()  # step = 4
+        step = mngr.latest_step() 
         states=mngr.restore(step,args=ocp.args.Composite(
     model_g=ocp.args.StandardRestore(generator_state),
     model_d=ocp.args.StandardRestore(discriminator_state)))
@@ -197,7 +194,6 @@ def train(args,hp,mesh):
                         spec_l:jnp.ndarray,
                         audio_e:jnp.ndarray,
                        rng_e:PRNGKey):
-        audio = jnp.expand_dims(audio_e,1)
         def loss_fn(params):
             stft = TacotronSTFT(filter_length=hp.data.filter_length,
                     hop_length=hp.data.hop_length,
@@ -209,7 +205,7 @@ def train(args,hp,mesh):
             #stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            fake_audio, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
+            fake_audio, ids_slice , z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
                 {'params': params},  
                 ppg,
                 pit, 
@@ -218,7 +214,7 @@ def train(args,hp,mesh):
                 ppg_l, 
                 spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
                      
-            #audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
             
@@ -247,10 +243,10 @@ def train(args,hp,mesh):
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hp.train.c_kl
             loss_g = mel_loss + score_loss +  feat_loss + loss_kl
 
-            return loss_g, (fake_audio,mel_loss,score_loss,feat_loss,loss_kl)
+            return loss_g, (fake_audio,audio,mel_loss,score_loss,feat_loss,loss_kl)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,mel_loss,score_loss,feat_loss,loss_kl)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,audio,mel_loss,score_loss,feat_loss,loss_kl)), grads_g = grad_fn(generator_state.params)
 
         new_generator_state = generator_state.apply_gradients(grads=grads_g)
         

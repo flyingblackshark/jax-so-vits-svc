@@ -2,8 +2,7 @@ import argparse
 from omegaconf import OmegaConf
 from vits_extend.train import train
 import jax
-
-from jax.sharding import Mesh, PartitionSpec, NamedSharding
+from jax.sharding import Mesh
 from jax.experimental import mesh_utils
 
 

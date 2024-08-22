@@ -18,8 +18,7 @@ def rand_slice_segments_with_pitch(x, pitch, x_lengths=None, segment_size=4,rng=
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
-    uniform_key , rng = jax.random.split(rng,2)
-    ids_str = (jax.random.uniform(uniform_key,[b],maxval=ids_str_max)).astype(jnp.int32)
+    ids_str = (jax.random.uniform(rng,[b],maxval=ids_str_max)).astype(jnp.int32)
     ret = slice_segments(x, ids_str, segment_size)
     ret_pitch = slice_pitch_segments(pitch, ids_str, segment_size)
     return ret, ret_pitch, ids_str

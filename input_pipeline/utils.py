@@ -98,25 +98,25 @@ import random
 #         return data
 #       except StopIteration:
 #         self._update_shard(idx)
-class SliceToLength(grain.python.MapTransform):
-  """Pads each input to the specified length"""
+# class SliceToLength(grain.python.MapTransform):
+#   """Pads each input to the specified length"""
 
-  def __init__(self,hp):
-    self.use = int(hp.data.segment_size / hp.data.hop_length * 16)  # 4 S
-    self.hop_length = hp.data.hop_length
-  def map(self, data):
-    max_frame_start = data["hubert_feature"].shape[0] - self.use - 1
-    frame_start = random.randint(0, int(max_frame_start))
-    frame_end = frame_start + self.use
+#   def __init__(self,hp):
+#     self.use = int(hp.data.segment_size / hp.data.hop_length * 16)  # 4 S
+#     self.hop_length = hp.data.hop_length
+#   def map(self, data):
+#     max_frame_start = data["hubert_feature"].shape[0] - self.use - 1
+#     frame_start = random.randint(0, int(max_frame_start))
+#     frame_end = frame_start + self.use
     
-    data["hubert_feature"] = data["hubert_feature"][frame_start:frame_end, :]
-    data["f0_feature"] = data["f0_feature"][frame_start:frame_end]
-    data["spec_feature"] = data["spec_feature"][frame_start:frame_end, :]
+#     data["hubert_feature"] = data["hubert_feature"][frame_start:frame_end, :]
+#     data["f0_feature"] = data["f0_feature"][frame_start:frame_end]
+#     data["spec_feature"] = data["spec_feature"][frame_start:frame_end, :]
 
-    wav_start = frame_start * self.hop_length
-    wav_end = frame_end * self.hop_length
-    data["audio"] = data["audio"][wav_start:wav_end]
-    return data
+#     wav_start = frame_start * self.hop_length
+#     wav_end = frame_end * self.hop_length
+#     data["audio"] = data["audio"][wav_start:wav_end]
+#     return data
 class PadToMaxLength(grain.python.MapTransform):
   """Pads each input to the specified length"""
 
