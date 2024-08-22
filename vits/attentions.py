@@ -41,11 +41,11 @@ class Encoder(nn.Module):
         for i in range(self.n_layers):
             y = self.attn_layers[i](x.transpose(0,2,1), mask=attn_mask,deterministic=not train).transpose(0,2,1)
             y = self.drop(y,deterministic=not train)
-            x = self.norm_layers_1[i](x + y)
+            x = self.norm_layers_1[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
 
             y = self.ffn_layers[i](x, x_mask,train=train)
             y = self.drop(y,deterministic=not train)
-            x = self.norm_layers_2[i](x + y)
+            x = self.norm_layers_2[i]((x + y).transpose(0,2,1)).transpose(0,2,1)
         x = x * x_mask
         return x
 
