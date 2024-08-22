@@ -56,7 +56,7 @@ class Generator(nn.Module):
         self.resblocks = resblocks
 
     def __call__(self, x, f0,g=None,train=True):
-        x = x + jax.random.normal(self.make_rng('rnorms'),x.shape)
+        #x = x + jax.random.normal(self.make_rng('rnorms'),x.shape)
 
         f0 = f0[:, None]
         B, H, W = f0.shape
@@ -64,7 +64,7 @@ class Generator(nn.Module):
         har_source = self.m_source(f0,self.make_rng('rnorms'))
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
-        x = x + self.cond(g)
+        x = x + self.cond(g.transpose(0,2,1)).transpose(0,2,1)
         for i in range(self.num_upsamples):
             x = nn.leaky_relu(x, 0.1)
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
