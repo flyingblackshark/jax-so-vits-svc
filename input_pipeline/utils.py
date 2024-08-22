@@ -67,7 +67,7 @@ class ParseFeatures(grain.python.MapTransform):
     f0_feature = tf.io.parse_tensor(example["f0_feature"],tf.float32)
     spec_feature = tf.io.parse_tensor(example["spec_feature"],tf.float32)
     hubert_feature = tf.repeat(hubert_feature,repeats=2,axis=0) 
-    lmin = min(hubert_feature.shape[1], spec_feature.shape[1])
+    lmin = min(hubert_feature.shape[0], spec_feature.shape[0])
     hubert_feature = hubert_feature[:lmin]
     f0_feature = f0_feature[:lmin]
     spec_feature = spec_feature[:lmin]
