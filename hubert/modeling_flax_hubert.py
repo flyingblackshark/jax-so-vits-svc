@@ -171,7 +171,7 @@ class FlaxHubertGroupNormConvLayer(nn.Module):
         )
         self.activation = ACT2FN[self.config.feat_extract_activation]
 
-        self.layer_norm = nn.GroupNorm(num_groups=self.out_conv_dim, dtype=self.dtype)
+        self.layer_norm = nn.GroupNorm(num_groups=self.out_conv_dim, dtype=self.dtype,epsilon=1e-5)
 
     def __call__(self, hidden_states):
         hidden_states = self.conv(hidden_states)
@@ -218,8 +218,7 @@ class FlaxConvLayersCollection(nn.Module):
             self.layers = [
                 FlaxHubertGroupNormConvLayer(
                     self.config, layer_id=0, name=str(0), dtype=self.dtype
-                )
-            ] + [
+                )] + [
                 FlaxHubertNoLayerNormConvLayer(
                     self.config, layer_id=i, name=str(i), dtype=self.dtype
                 )
