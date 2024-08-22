@@ -118,7 +118,7 @@ class ResidualCouplingLayer(nn.Module):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
         self.half_channels = self.channels // 2
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1])
         self.enc = WN(
             self.hidden_channels,
             self.kernel_size,
@@ -127,7 +127,7 @@ class ResidualCouplingLayer(nn.Module):
             gin_channels = self.gin_channels,
             p_dropout=self.p_dropout
         )
-        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
+        self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1])
 
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):

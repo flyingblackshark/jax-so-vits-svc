@@ -212,11 +212,11 @@ def train(args,hp,mesh):
             fake_audio, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = generator_state.apply_fn(
                 {'params': params},  
                 ppg,
-                  pit, 
-                  spec,
-                    spk, 
-                    ppg_l, 
-                    spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
+                pit, 
+                spec,
+                spk, 
+                ppg_l, 
+                spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
                      
             #audio = commons.slice_segments(jnp.expand_dims(audio_e,1), ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))

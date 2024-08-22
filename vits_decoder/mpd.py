@@ -1,14 +1,5 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.nn.utils import weight_norm, spectral_norm
-import numpy as np
-import jax
 import jax.numpy as jnp
 import flax.linen as nn
-from jax.nn.initializers import normal as normal_init
-from jax.nn.initializers import constant as constant_init
-
 
 class DiscriminatorP(nn.Module):
     hp:tuple

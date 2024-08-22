@@ -63,7 +63,7 @@ log:
   log_dir: 'logs'
 #############################
 data_loader:
-  dataset_path: "/bucket/processed/aurora/*.arrayrecord"
+  dataset_path: "/home/fbs/jax-so-vits-svc/processed/aurora/*.arrayrecord"
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000

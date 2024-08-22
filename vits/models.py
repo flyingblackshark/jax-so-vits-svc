@@ -20,8 +20,8 @@ class TextEncoder(nn.Module):
     kernel_size:int
     p_dropout:float
     def setup(self):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-        self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32,embedding_init=nn.initializers.normal(1.0))
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5])
+        self.pit = nn.Embed(256, self.hidden_channels)
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
             filter_channels=self.filter_channels,
@@ -29,7 +29,7 @@ class TextEncoder(nn.Module):
             n_layers=self.n_layers,
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout)
-        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1])
     def __call__(self, x, x_lengths, f0,train=True):
         x = x.transpose(0,2,1)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
@@ -91,7 +91,7 @@ class PosteriorEncoder(nn.Module):
     def setup(
         self
     ):
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1])
         self.enc = modules.WN(
             self.hidden_channels,
             self.kernel_size,
@@ -99,7 +99,7 @@ class PosteriorEncoder(nn.Module):
             self.n_layers,
             gin_channels=self.gin_channels
         )
-        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.proj = nn.Conv(features=self.out_channels * 2,kernel_size=[1])
 
     def __call__(self, x, x_lengths,g=None,train=True):
         x = x.transpose(0,2,1)

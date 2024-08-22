@@ -181,10 +181,7 @@ class ParseFeatures(grain.python.MapTransform):
     hubert_feature = tf.io.parse_tensor(example["hubert_feature"],tf.float32)
     f0_feature = tf.io.parse_tensor(example["f0_feature"],tf.float32)
     spec_feature = tf.io.parse_tensor(example["spec_feature"],tf.float32)
-
-    hubert_feature = tf.repeat(hubert_feature,repeats=2,axis=0) #replicate
-    #speaker = tf.strings.unicode_decode(example["speaker"],'UTF-8')
-    #return _parse(features)
+    hubert_feature = tf.repeat(hubert_feature,repeats=2,axis=0) 
     return {
         "audio": audio,
         "audio_length":audio.shape[0],
