@@ -21,7 +21,7 @@ def get_dataset(hp,mesh):
     # global_mesh = Mesh(jax.devices(),('x'))
     operations = []
     operations.append(utils.ParseFeatures(hp))
-    operations.append(utils.PadToMaxLength(30*44100,3000,3000,3000))
+    operations.append(utils.PadToMaxLength(30*32000,3000,3000,3000))
     #operations.append(utils.SliceToLength(hp))
     operations.append(grain.python.Batch(batch_size=hp.data_loader.global_batch_size // jax.process_count(), drop_remainder=False))
     dataloader = grain.python.DataLoader(
