@@ -3,14 +3,8 @@ import jax.numpy as jnp
 import flax.linen as nn
 import numpy as np
 from scipy.io.wavfile import read
-#import torch
+
 MATPLOTLIB_FLAG = False
-
-
-def load_wav_to_torch(full_path):
-    sampling_rate, data = read(full_path)
-    return torch.FloatTensor(data.astype(np.float32)), sampling_rate
-
 
 f0_bin = 256
 f0_max = 1100.0

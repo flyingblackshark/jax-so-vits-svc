@@ -103,8 +103,6 @@ class PosteriorEncoder(nn.Module):
 
     def __call__(self, x, x_lengths,g=None,train=True):
         x = x.transpose(0,2,1)
-        rng = self.make_rng('rnorms')
-        normal_key,rng = jax.random.split(rng,2)
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = jnp.where(x_mask,x,0)
@@ -112,7 +110,7 @@ class PosteriorEncoder(nn.Module):
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
         stats = jnp.where(x_mask,stats,0)
         m, logs = jnp.split(stats,2, axis=1)
-        z = (m + jax.random.normal(normal_key,m.shape) * jnp.exp(logs))
+        z = (m + jax.random.normal(self.make_rng('rnorms'),m.shape) * jnp.exp(logs))
         z = jnp.where(x_mask,z,0)
         return z, m, logs, x_mask
     

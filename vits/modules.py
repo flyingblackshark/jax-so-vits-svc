@@ -51,7 +51,6 @@ class WN(nn.Module):
             ))
             in_layers.append(in_layer)
 
-            # last one is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_channels
             else:
@@ -86,13 +85,11 @@ class WN(nn.Module):
             res_skip_acts = self.res_skip_layers[i](acts.transpose(0,2,1)).transpose(0,2,1)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:,:self.hidden_channels,:]
-                x = (x + res_acts)
-                x = jnp.where(x_mask,x,0)
+                x = (x + res_acts) * x_mask
                 output = output + res_skip_acts[:,self.hidden_channels:,:]
             else:
                 output = output + res_skip_acts
-        output = jnp.where(x_mask,output,0)
-        return output
+        return output * x_mask
 
 
 
@@ -122,7 +119,6 @@ class ResidualCouplingLayer(nn.Module):
         self.half_channels = self.channels // 2
 
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
-        # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
             self.kernel_size,
@@ -139,7 +135,7 @@ class ResidualCouplingLayer(nn.Module):
         x0, x1 = jnp.split(x, 2 , axis=1)
         h = self.pre(x0.transpose(0,2,1)).transpose(0,2,1) * x_mask
         h = self.enc(h, x_mask,g=g,train=train)
-        stats = jnp.where(x_mask,self.post(h.transpose(0,2,1)).transpose(0,2,1),0)
+        stats = (self.post(h.transpose(0,2,1)).transpose(0,2,1)) * x_mask
         if not self.mean_only:
             m, logs = jnp.split(stats, 2, 1)
         else:

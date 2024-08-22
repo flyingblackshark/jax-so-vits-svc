@@ -5,14 +5,10 @@ train:
   learning_rate: 5e-4 #stable lr
   betas: [0.95, 0.98]
   lr_decay: 0.99875
-  total_steps: 10000 # base on dataset size
   eps: 1e-9
-  batch_size: 2+
   c_stft: 9
   c_mel: 1.
   c_kl: 0.2
-  port: 8001
-  pretrain: ""
   max_to_keep : 5
 #############################
 data: 
@@ -63,17 +59,12 @@ log:
   eval_interval: 1000
   save_interval: 1000
   num_audio: 6
-  pth_dir: 'gs://fbs-us2/chkpt' #absolute path
+  pth_dir: 'gs://fbs-us2/chkpt' 
   log_dir: 'logs'
 #############################
-dist_config:
-  dist_backend: "nccl"
-  dist_url: "tcp://localhost:54321"
-  world_size: 1
-
 data_loader:
-  dataset_path: "/home/fbsdev005/bucket/processed/aurora/*.arrayrecord"
+  dataset_path: "/bucket/processed/aurora/*.arrayrecord"
   host_number: 1
   global_batch_size: 64
   num_epochs: 1000
-  worker_count: 1
+  worker_count: 4
